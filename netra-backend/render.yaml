@@ -3,6 +3,7 @@ services:
     name: netra-backend
     env: node
     region: oregon
+    rootDir: netra-backend
     buildCommand: npm install
     startCommand: node src/server.js
     envVars:
