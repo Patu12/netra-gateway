@@ -1,0 +1,24 @@
+{
+  "name": "netra-backend",
+  "version": "1.0.0",
+  "description": "Netra Gateway Backend API",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "node src/database/migrate.js"
+  },
+  "author": "Netra Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "uuid": "^9.0.1",
+    "stripe": "^14.5.0",
+    "node-cron": "^3.0.3",
+    "winston": "^3.11.0"
+  }
+}

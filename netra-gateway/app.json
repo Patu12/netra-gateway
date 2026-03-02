@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Netra Gateway",
+    "slug": "netra-gateway",
+    "version": "1.0.0",
+    "cli": {
+      "appVersionSource": "remote"
+    },
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A1628"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.netra.gateway"
+    },
+    "android": {
+      "package": "com.netra.gateway",
+      "networkSecurityConfig": "./network_security_config.xml",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ec02073a-f1ff-4d24-a2a5-d347fecf682f"
+      }
+    },
+    "plugins": [
+      "expo-asset",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.25",
+            "kotlinCompilerExtensionVersion": "1.5.15",
+            "javaVersion": 17,
+            "packagingOptions": {
+              "pickFirst": [
+                "**/libc++_shared.so"
+              ]
+            }
+          }
+        }
+      ]
+    ],
+    "owner": "mwanga-123"
+  }
+}
