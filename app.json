@@ -19,14 +19,11 @@
       "bundleIdentifier": "com.netra.gateway"
     },
     "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#0A1628",
-        "foregroundImage": "./assets/images/android-icon-foreground.png"
-      },
       "package": "com.netra.gateway",
+      "networkSecurityConfig": "./network_security_config.xml",
       "permissions": [
-        "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE"
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
       ]
     },
     "web": {
