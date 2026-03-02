@@ -10,6 +10,7 @@ logs/
 dist/
 build/
 *.apk
+android/
 
 # OS files
 .DS_Store
@@ -22,3 +23,6 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Expo
+.expo/
