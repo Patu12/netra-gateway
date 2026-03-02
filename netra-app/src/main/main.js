@@ -1,15 +1,12 @@
-// 1. Kill the path string issue
-let electron = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, shell } = require('electron');
 
-// If it's a string (path), we try to get the actual API object
-if (typeof electron === 'string') {
-    // This happens in some Windows shells where 'electron' exports the path
-    // We try to delete the cache and re-require the internal module
-    delete require.cache[require.resolve('electron')];
-    electron = require('electron');
+// Debug: check if we're in electron runtime
+if (!app || typeof app.whenReady !== 'function') {
+    console.error('ERROR: Not running in Electron runtime!');
+    console.error('App:', app);
+    console.error('App type:', typeof app);
+    process.exit(1);
 }
-
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, shell } = electron;
 
 // 2. Add a 'Safety Valve' for the error handler
 process.on('uncaughtException', (error) => {
