@@ -1,50 +1,142 @@
-# Welcome to your Expo app 👋
+# Netra Gateway
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A PC desktop application serving as an AAA (Authentication, Authorization, and Accounting) server - essentially "a gateway in your pocket" for on-demand micro-connectivity.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **Authentication**: Secure JWT-based login/registration
+- **Subscription Management**: Daily, Weekly, Monthly, and Yearly plans
+- **VPN Integration**: WireGuard/OpenVPN protocol support
+- **Usage Tracking**: Real-time data consumption monitoring
+- **Payment Gateway**: Stripe/Paystack/Flutterwave integration ready
+- **Kill Switch**: Automatic disconnection when subscription expires
+- **System Tray**: Runs in background with tray controls
 
-   ```bash
-   npm install
-   ```
+## Tech Stack
 
-2. Start the app
+- **Frontend**: Electron (Desktop App)
+- **Backend**: Node.js + Express
+- **Database**: In-memory (easily swappable to PostgreSQL)
+- **Authentication**: JWT + bcrypt
 
-   ```bash
-   npx expo start
-   ```
+## Project Structure
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+netra/
+├── netra-app/           # Electron desktop app
+│   ├── src/
+│   │   ├── main/       # Main process
+│   │   └── renderer/   # UI (HTML/CSS/JS)
+│   └── package.json
+│
+├── netra-backend/       # API server
+│   ├── src/
+│   │   ├── database/   # Data models
+│   │   ├── middleware/ # Auth & subscription middleware
+│   │   ├── routes/    # API endpoints
+│   │   └── services/   # Business logic
+│   └── package.json
+│
+└── README.md
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Getting Started
 
-## Learn more
+### Prerequisites
 
-To learn more about developing your project with Expo, look at the following resources:
+- Node.js 18+
+- npm or yarn
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Installation
 
-## Join the community
+1. Clone the repository
+2. Install dependencies:
 
-Join our community of developers creating universal apps.
+```bash
+# Install backend dependencies
+cd netra-backend
+npm install
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+# Install app dependencies
+cd ../netra-app
+npm install
+```
+
+### Running the Application
+
+1. Start the backend server:
+
+```bash
+cd netra-backend
+npm start
+```
+
+2. Start the Electron app:
+
+```bash
+cd netra-app
+npm start
+```
+
+### Demo Credentials
+
+- Email: `demo@netra.io`
+- Password: `demo123`
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/register` - Create account
+- `POST /api/auth/login` - Sign in
+- `GET /api/auth/me` - Get current user
+
+### Subscription
+- `GET /api/subscription/plans` - List plans
+- `GET /api/subscription/status` - Get subscription status
+- `POST /api/subscription/purchase` - Purchase plan
+
+### VPN
+- `GET /api/vpn/status` - Connection status
+- `GET /api/vpn/servers` - List servers
+- `POST /api/vpn/connect` - Connect to VPN
+- `POST /api/vpn/disconnect` - Disconnect
+
+### Usage
+- `GET /api/usage/stats` - Usage statistics
+- `POST /api/usage/report` - Report usage
+
+### Webhooks
+- `POST /api/webhooks/stripe` - Stripe payments
+- `POST /api/webhooks/paystack` - Paystack payments
+- `POST /api/webhooks/flutterwave` - Flutterwave payments
+
+## Subscription Plans
+
+| Plan | Price | Data Limit | Duration |
+|------|-------|-------------|----------|
+| Free Trial | $0 | 100 MB | 24 hours |
+| Daily | $0.99 | 500 MB | 1 day |
+| Weekly | $4.99 | 2 GB | 7 days |
+| Monthly | $14.99 | 50 GB | 30 days |
+| Yearly | $99.99 | 500 GB | 365 days |
+
+## Building for Production
+
+```bash
+cd netra-app
+npm run build
+```
+
+The executable will be in `netra-app/dist/`.
+
+## Future Features
+
+- **Community Mode**: Share bandwidth with neighbors for Common-Credits
+- **Mobile Apps**: React Native versions for iOS/Android
+- **Real VPN Server**: Actual WireGuard server deployment
+- **Analytics Dashboard**: Admin panel for monitoring
+- **Multiple Payment Methods**: Mobile money, crypto support
+
+## License
+
+MIT
