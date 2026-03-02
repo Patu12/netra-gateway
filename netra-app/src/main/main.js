@@ -1,7 +1,36 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, shell } = require('electron');
+// 1. Kill the path string issue
+let electron = require('electron');
+
+// If it's a string (path), we try to get the actual API object
+if (typeof electron === 'string') {
+    // This happens in some Windows shells where 'electron' exports the path
+    // We try to delete the cache and re-require the internal module
+    delete require.cache[require.resolve('electron')];
+    electron = require('electron');
+}
+
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, shell } = electron;
+
+// 2. Add a 'Safety Valve' for the error handler
+process.on('uncaughtException', (error) => {
+    console.error('CRITICAL ERROR:', error);
+    if (dialog && dialog.showErrorBox) {
+        dialog.showErrorBox('Fatal Error', `An unexpected error occurred:\n${error.message}`);
+    }
+    if (app && app.exit) app.exit(1);
+});
+
+// 3. Debug Check
+console.log('App object status:', !!app ? 'READY' : 'STILL_UNDEFINED');
 const path = require('path');
 const log = require('electron-log');
 const axios = require('axios');
+
+// Debug: check if electron module is loaded properly
+const testElectron = require('electron');
+console.log('Is Electron Loaded?', !!testElectron);
+console.log('Is App defined?', !!testElectron.app);
+console.log('Electron keys:', Object.keys(testElectron));
 
 // Configure logging
 log.transports.file.level = 'info';
@@ -11,9 +40,6 @@ log.transports.console.level = 'debug';
 // Log startup
 log.info('='.repeat(50));
 log.info('Netra Gateway Starting...');
-log.info(`App Version: ${app.getVersion()}`);
-log.info(`Electron: ${process.versions.electron}`);
-log.info(`Node: ${process.versions.node}`);
 log.info(`Platform: ${process.platform}`);
 log.info('='.repeat(50));
 
@@ -23,7 +49,7 @@ let tray = null;
 let isQuitting = false;
 
 // API Configuration
-const API_URL = process.env.API_URL || 'http://localhost:3001';
+const API_URL = process.env.API_URL || 'https://netra-backend-99n0.onrender.com';
 let authToken = null;
 
 const API = axios.create({
@@ -372,7 +398,7 @@ function setupIPC() {
             
             try {
                 // Try to connect using Tailscale
-                execSync(`"${tailscalePath}" up --exit-node`, { stdio: 'pipe' });
+                execSync(`"${tailscalePath}" up --exit-node=100.102.117.30`, { stdio: 'pipe' });
                 log.info('Tailscale connected');
             } catch (e) {
                 // If already connected, just continue
@@ -504,6 +530,9 @@ function setupIPC() {
 // App lifecycle
 app.whenReady().then(() => {
     log.info('App ready');
+    log.info(`App Version: ${app.getVersion()}`);
+    log.info(`Electron: ${process.versions.electron}`);
+    log.info(`Node: ${process.versions.node}`);
     createMenu();
     createWindow();
     createTray();
