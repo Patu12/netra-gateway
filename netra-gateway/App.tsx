@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
-  View,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  StatusBar,
-  Linking,
-  Platform,
+  View
 } from 'react-native';
 
 // API Configuration
@@ -95,13 +94,17 @@ export default function App() {
     console.log('Generated WireGuard keys:', keys.publicKey.substring(0, 10) + '...');
   }, []);
 
+  // Load plans on mount
+  useEffect(() => {
+    loadPlans();
+  }, []);
+
   useEffect(() => {
     if (isLoggedIn && user) {
-      loadPlans();
       checkSubscription();
       syncPublicKey();
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, user]);
 
   const syncPublicKey = async () => {
     if (!user || !vpnKeys) return;
