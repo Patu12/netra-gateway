@@ -138,7 +138,12 @@ export default function App() {
       });
       const data = await response.json();
       if (data.success) {
-        setUser(data.user);
+        // Extract isAdmin from response (backend returns it separately)
+        const userWithAdmin = {
+          ...data.user,
+          isAdmin: data.isAdmin || false
+        };
+        setUser(userWithAdmin);
         setIsLoggedIn(true);
       } else {
         Alert.alert('Login Failed', data.message || 'Invalid credentials');
@@ -169,7 +174,13 @@ export default function App() {
       });
       const data = await response.json();
       if (data.success) {
-        setSubscription(data.subscription);
+        // Backend sends isAdmin in the subscription response for admin users
+        const subData = data.data || data.subscription;
+        setSubscription(subData);
+        // Update user with admin status from subscription
+        if (subData?.isAdmin) {
+          setUser(prev => prev ? { ...prev, isAdmin: true } : null);
+        }
       }
     } catch (error) {
       console.error('Failed to check subscription:', error);
