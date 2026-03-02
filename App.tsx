@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 
 // API Configuration
-const API_BASE = 'http://10.0.2.2:3001'; // Android emulator localhost
+const API_BASE = 'https://netra-backend-99n0.onrender.com'; // Render backend URL
+// For local development, use: 'http://localhost:3001' or your PC's IP: 'http://192.168.x.x:3001'
 // For physical device, use your PC's IP address: 'http://YOUR_PC_IP:3001'
 
 // Gateway Configuration - Hardcoded for offline access
