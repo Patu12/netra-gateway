@@ -54,10 +54,10 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Public routes
-const { SubscriptionPlan } = require('./database/models');
+// Public routes - no authentication required
 app.get('/api/public/plans', (req, res) => {
     try {
+        const { SubscriptionPlan } = require('./database/models');
         const plans = SubscriptionPlan.findAll();
         res.json({ success: true, data: plans });
     } catch (error) {
@@ -67,7 +67,6 @@ app.get('/api/public/plans', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/public/plans', subscriptionRoutes); // Public plans endpoint
 app.use('/api/subscription', authMiddleware, subscriptionRoutes);
 app.use('/api/vpn', authMiddleware, subscriptionMiddleware, vpnRoutes);
 app.use('/api/usage', authMiddleware, usageRoutes);
