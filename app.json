@@ -40,7 +40,8 @@
         "expo-build-properties",
         {
           "android": {
-            "kotlinVersion": "1.9.24",
+            "kotlinVersion": "1.9.25",
+            "kotlinCompilerExtensionVersion": "1.5.15",
             "javaVersion": 17,
             "packagingOptions": {
               "pickFirst": [
