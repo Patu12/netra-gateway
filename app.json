@@ -3,6 +3,9 @@
     "name": "Netra Gateway",
     "slug": "netra-gateway",
     "version": "1.0.0",
+    "cli": {
+      "appVersionSource": "remote"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "dark",
