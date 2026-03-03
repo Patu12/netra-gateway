@@ -169,6 +169,43 @@ router.post('/purchase', async (req, res) => {
     }
 });
 
+// POST /api/admin/grant-subscription (admin only)
+router.post('/admin/grant', (req, res) => {
+    try {
+        const { userId, planId } = req.body;
+        
+        if (!userId || !planId) {
+            return res.status(400).json({
+                success: false,
+                message: 'userId and planId are required'
+            });
+        }
+        
+        // Check if admin
+        if (!req.user || req.user.email !== 'admin@netra.io') {
+            return res.status(403).json({
+                success: false,
+                message: 'Admin access required'
+            });
+        }
+        
+        // Grant subscription
+        const subscription = UserSubscription.create(userId, planId, 'admin-grant');
+        
+        res.json({
+            success: true,
+            data: { subscription },
+            message: `Subscription activated for plan ${planId}`
+        });
+    } catch (error) {
+        console.error('Grant subscription error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error granting subscription'
+        });
+    }
+});
+
 // POST /api/subscription/cancel
 router.post('/cancel', (req, res) => {
     try {

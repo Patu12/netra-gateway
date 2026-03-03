@@ -1,14 +1,48 @@
-// In-memory database (can be replaced with PostgreSQL/Firebase)
-// Using a simple in-memory store for development
+// In-memory database with file persistence
+// Can be replaced with PostgreSQL/Firebase in production
 
+const fs = require('fs');
+const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
+const DB_FILE = path.join(__dirname, 'database.json');
+
+// Load or initialize database
+function loadDatabase() {
+    try {
+        if (fs.existsSync(DB_FILE)) {
+            const data = fs.readFileSync(DB_FILE, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (e) {
+        console.log('Could not load database file, starting fresh');
+    }
+    return {
+        users: {},
+        subscriptions: {},
+        transactions: {},
+        usageLogs: {},
+        vpnSessions: {}
+    };
+}
+
+function saveDatabase(data) {
+    try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+    } catch (e) {
+        console.error('Error saving database:', e.message);
+    }
+}
+
+// Initialize database with persistence
+const db = loadDatabase();
+
 // Database collections
-const users = new Map();
-const subscriptions = new Map();
-const transactions = new Map();
-const usageLogs = new Map();
-const vpnSessions = new Map();
+const users = new Map(Object.entries(db.users));
+const subscriptions = new Map(Object.entries(db.subscriptions));
+const transactions = new Map(Object.entries(db.transactions));
+const usageLogs = new Map(Object.entries(db.usageLogs));
+const vpnSessions = new Map(Object.entries(db.vpnSessions));
 
 // Default subscription plans
 const defaultPlans = [
@@ -111,6 +145,7 @@ const User = {
         };
         users.set(user.id, user);
         users.set(user.email, user);
+        saveDatabase({ users: Object.fromEntries(users), subscriptions: Object.fromEntries(subscriptions), transactions: Object.fromEntries(transactions), usageLogs: Object.fromEntries(usageLogs), vpnSessions: Object.fromEntries(vpnSessions) });
         return user;
     },
     
@@ -120,6 +155,7 @@ const User = {
         const updated = { ...user, ...data };
         users.set(id, updated);
         users.set(updated.email, updated);
+        saveDatabase({ users: Object.fromEntries(users), subscriptions: Object.fromEntries(subscriptions), transactions: Object.fromEntries(transactions), usageLogs: Object.fromEntries(usageLogs), vpnSessions: Object.fromEntries(vpnSessions) });
         return updated;
     },
     
@@ -128,6 +164,7 @@ const User = {
         if (user) {
             users.delete(id);
             users.delete(user.email);
+            saveDatabase({ users: Object.fromEntries(users), subscriptions: Object.fromEntries(subscriptions), transactions: Object.fromEntries(transactions), usageLogs: Object.fromEntries(usageLogs), vpnSessions: Object.fromEntries(vpnSessions) });
         }
         return user;
     },
@@ -154,7 +191,15 @@ const UserSubscription = {
     
     findByUserId: (userId) => {
         const sub = UserSubscription._userSubs.get(userId);
-        if (!sub) return null;
+        if (!sub) {
+            // Try loading from persisted store
+            const persisted = subscriptions.get(userId);
+            if (persisted) {
+                UserSubscription._userSubs.set(userId, persisted);
+                return persisted;
+            }
+            return null;
+        }
         
         // Check if expired
         if (sub.expiresAt && new Date(sub.expiresAt) < new Date()) {
@@ -186,15 +231,22 @@ const UserSubscription = {
         };
         
         UserSubscription._userSubs.set(userId, subscription);
+        subscriptions.set(userId, subscription);
+        saveDatabase({ users: Object.fromEntries(users), subscriptions: Object.fromEntries(subscriptions), transactions: Object.fromEntries(transactions), usageLogs: Object.fromEntries(usageLogs), vpnSessions: Object.fromEntries(vpnSessions) });
         return subscription;
     },
     
     update: (userId, data) => {
-        const sub = UserSubscription._userSubs.get(userId);
+        let sub = UserSubscription._userSubs.get(userId);
+        if (!sub) {
+            sub = subscriptions.get(userId);
+        }
         if (!sub) return null;
         
         const updated = { ...sub, ...data };
         UserSubscription._userSubs.set(userId, updated);
+        subscriptions.set(userId, updated);
+        saveDatabase({ users: Object.fromEntries(users), subscriptions: Object.fromEntries(subscriptions), transactions: Object.fromEntries(transactions), usageLogs: Object.fromEntries(usageLogs), vpnSessions: Object.fromEntries(vpnSessions) });
         return updated;
     },
     
@@ -232,6 +284,7 @@ const Transaction = {
             createdAt: new Date().toISOString()
         };
         transactions.set(transaction.id, transaction);
+        saveDatabase({ users: Object.fromEntries(users), subscriptions: Object.fromEntries(subscriptions), transactions: Object.fromEntries(transactions), usageLogs: Object.fromEntries(usageLogs), vpnSessions: Object.fromEntries(vpnSessions) });
         return transaction;
     },
     
@@ -241,6 +294,7 @@ const Transaction = {
         
         const updated = { ...transaction, ...data };
         transactions.set(id, updated);
+        saveDatabase({ users: Object.fromEntries(users), subscriptions: Object.fromEntries(subscriptions), transactions: Object.fromEntries(transactions), usageLogs: Object.fromEntries(usageLogs), vpnSessions: Object.fromEntries(vpnSessions) });
         return updated;
     },
     
@@ -259,6 +313,7 @@ const UsageLog = {
         };
         const key = `${data.userId}-${Date.now()}`;
         usageLogs.set(key, log);
+        saveDatabase({ users: Object.fromEntries(users), subscriptions: Object.fromEntries(subscriptions), transactions: Object.fromEntries(transactions), usageLogs: Object.fromEntries(usageLogs), vpnSessions: Object.fromEntries(vpnSessions) });
         return log;
     },
     
