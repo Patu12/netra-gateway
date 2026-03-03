@@ -56,7 +56,7 @@ async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS user_subscriptions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL REFERENCES users(id),
-        plan_id VARCHAR(50) NOT NULL,
+        plan_id VARCHAR(50) NOT NULL REFERENCES subscription_plans(id),
         status VARCHAR(20) DEFAULT 'active',
         active BOOLEAN DEFAULT true,
         starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -71,7 +71,7 @@ async function initializeDatabase() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS transactions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL,
+        user_id UUID NOT NULL REFERENCES users(id),
         plan_id VARCHAR(50) NOT NULL,
         amount DECIMAL(10, 2) NOT NULL,
         currency VARCHAR(10) DEFAULT 'USD',
@@ -86,7 +86,7 @@ async function initializeDatabase() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS usage_logs (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL,
+        user_id UUID NOT NULL REFERENCES users(id),
         bytes_used BIGINT DEFAULT 0,
         session_count INTEGER DEFAULT 0,
         last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -98,8 +98,8 @@ async function initializeDatabase() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS vpn_sessions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL,
-        public_key VARCHAR(255),
+        user_id UUID NOT NULL REFERENCES users(id),
+        public_key VARCHAR(255) UNIQUE,
         ip_address VARCHAR(50),
         connected BOOLEAN DEFAULT false,
         connected_at TIMESTAMP,
@@ -153,67 +153,61 @@ async function initializeDatabase() {
 
 // User operations
 const User = {
-  findByEmail(email) {
-    return pool.query('SELECT * FROM users WHERE email = $1', [email])
-      .then(result => result.rows[0]);
+  async findByEmail(email) {
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    return result.rows[0];
   },
 
-  findById(id) {
-    return pool.query('SELECT * FROM users WHERE id = $1', [id])
-      .then(result => result.rows[0]);
+  async findById(id) {
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    return result.rows[0];
   },
 
-  create(email, password, name) {
+  async create(email, password, name) {
     const bcrypt = require('bcryptjs');
-    return bcrypt.hash(password, 10)
-      .then(hashedPassword => {
-        return pool.query(
-          'INSERT INTO users (email, password, name) VALUES ($1, $2, $3) RETURNING *',
-          [email, hashedPassword, name]
-        );
-      })
-      .then(result => result.rows[0]);
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      'INSERT INTO users (email, password, name) VALUES ($1, $2, $3) RETURNING *',
+      [email, hashedPassword, name]
+    );
+    return result.rows[0];
   }
 };
 
-// Subscription plan operations
+// Subscription operations
 const SubscriptionPlan = {
-  findAll() {
-    return pool.query('SELECT * FROM subscription_plans ORDER BY price')
-      .then(result => result.rows);
+  async findAll() {
+    const result = await pool.query('SELECT * FROM subscription_plans ORDER BY price');
+    return result.rows;
   },
 
-  findById(id) {
-    return pool.query('SELECT * FROM subscription_plans WHERE id = $1', [id])
-      .then(result => result.rows[0]);
+  async findById(id) {
+    const result = await pool.query('SELECT * FROM subscription_plans WHERE id = $1', [id]);
+    return result.rows[0];
   }
 };
 
-// User subscription operations
 const UserSubscription = {
-  findByUserId(userId) {
-    return pool.query(
-      `SELECT us.*, sp.name as plan_name, sp.type, sp.price as plan_price, sp.interval, sp.data_limit, sp.duration, sp.features 
-       FROM user_subscriptions us 
-       JOIN subscription_plans sp ON us.plan_id = sp.id 
-       WHERE us.user_id = $1 AND us.active = true AND (us.expires_at IS NULL OR us.expires_at > NOW())`,
+  async findByUserId(userId) {
+    const result = await pool.query(
+      'SELECT us.*, sp.name as plan_name, sp.type, sp.data_limit, sp.features FROM user_subscriptions us JOIN subscription_plans sp ON us.plan_id = sp.id WHERE us.user_id = $1 AND us.active = true AND (us.expires_at IS NULL OR us.expires_at > NOW())',
       [userId]
-    ).then(result => result.rows[0]);
+    );
+    return result.rows[0];
   },
 
-  create(userId, planId, paymentId = 'free') {
-    return SubscriptionPlan.findById(planId)
-      .then(plan => {
-        const expiresAt = plan.duration ? new Date(Date.now() + plan.duration) : null;
-        return pool.query(
-          'INSERT INTO user_subscriptions (user_id, plan_id, status, active, payment_id, expires_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-          [userId, planId, 'active', true, paymentId, expiresAt]
-        );
-      })
-      .then(result => result.rows[0]);
+  async create(userId, planId, paymentId = 'free') {
+    const plan = await SubscriptionPlan.findById(planId);
+    const expiresAt = plan.duration ? new Date(Date.now() + plan.duration) : null;
+    
+    const result = await pool.query(
+      'INSERT INTO user_subscriptions (user_id, plan_id, status, active, payment_id, expires_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [userId, planId, 'active', true, paymentId, expiresAt]
+    );
+    return result.rows[0];
   },
 
-  update(userId, data) {
+  async update(userId, data) {
     const fields = [];
     const values = [];
     let paramCount = 1;
@@ -231,35 +225,37 @@ const UserSubscription = {
       values.push(data.expires_at);
     }
 
-    if (fields.length === 0) return Promise.resolve(null);
+    if (fields.length === 0) return null;
 
     values.push(userId);
-    return pool.query(
+    const result = await pool.query(
       `UPDATE user_subscriptions SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE user_id = $${paramCount} RETURNING *`,
       values
-    ).then(result => result.rows[0]);
+    );
+    return result.rows[0];
   }
 };
 
 // Transaction operations
 const Transaction = {
-  create(userId, planId, amount, currency, type, status, paymentId) {
-    return pool.query(
+  async create(userId, planId, amount, currency, type, status, paymentId) {
+    const result = await pool.query(
       'INSERT INTO transactions (user_id, plan_id, amount, currency, type, status, payment_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
       [userId, planId, amount, currency, type, status, paymentId]
-    ).then(result => result.rows[0]);
+    );
+    return result.rows[0];
   }
 };
 
 // Usage log operations
 const UsageLog = {
-  findByUserId(userId) {
-    return pool.query('SELECT * FROM usage_logs WHERE user_id = $1', [userId])
-      .then(result => result.rows[0]);
+  async findByUserId(userId) {
+    const result = await pool.query('SELECT * FROM usage_logs WHERE user_id = $1', [userId]);
+    return result.rows[0];
   },
 
-  upsert(userId, bytesUsed) {
-    return pool.query(
+  async upsert(userId, bytesUsed) {
+    const result = await pool.query(
       `INSERT INTO usage_logs (user_id, bytes_used, session_count, last_activity) 
        VALUES ($1, $2, 1, CURRENT_TIMESTAMP)
        ON CONFLICT (user_id) DO UPDATE SET 
@@ -268,30 +264,32 @@ const UsageLog = {
          last_activity = CURRENT_TIMESTAMP
        RETURNING *`,
       [userId, bytesUsed]
-    ).then(result => result.rows[0]);
+    );
+    return result.rows[0];
   }
 };
 
 // VPN session operations
 const VpnSession = {
-  findByUserId(userId) {
-    return pool.query('SELECT * FROM vpn_sessions WHERE user_id = $1', [userId])
-      .then(result => result.rows[0]);
+  async findByUserId(userId) {
+    const result = await pool.query('SELECT * FROM vpn_sessions WHERE user_id = $1', [userId]);
+    return result.rows[0];
   },
 
-  findByPublicKey(publicKey) {
-    return pool.query('SELECT * FROM vpn_sessions WHERE public_key = $1', [publicKey])
-      .then(result => result.rows[0]);
+  async findByPublicKey(publicKey) {
+    const result = await pool.query('SELECT * FROM vpn_sessions WHERE public_key = $1', [publicKey]);
+    return result.rows[0];
   },
 
-  create(userId, publicKey) {
-    return pool.query(
+  async create(userId, publicKey) {
+    const result = await pool.query(
       'INSERT INTO vpn_sessions (user_id, public_key) VALUES ($1, $2) RETURNING *',
       [userId, publicKey]
-    ).then(result => result.rows[0]);
+    );
+    return result.rows[0];
   },
 
-  update(userId, data) {
+  async update(userId, data) {
     const fields = [];
     const values = [];
     let paramCount = 1;
@@ -313,13 +311,14 @@ const VpnSession = {
       values.push(data.ip_address);
     }
 
-    if (fields.length === 0) return Promise.resolve(null);
+    if (fields.length === 0) return null;
 
     values.push(userId);
-    return pool.query(
+    const result = await pool.query(
       `UPDATE vpn_sessions SET ${fields.join(', ')} WHERE user_id = $${paramCount} RETURNING *`,
       values
-    ).then(result => result.rows[0]);
+    );
+    return result.rows[0];
   }
 };
 

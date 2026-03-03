@@ -4,6 +4,9 @@ const helmet = require('helmet');
 const winston = require('winston');
 const cron = require('node-cron');
 
+// Import database
+const { initializeDatabase } = require('./database/models');
+
 // Import routes
 const authRoutes = require('./routes/auth');
 const subscriptionRoutes = require('./routes/subscription');
@@ -109,9 +112,22 @@ cron.schedule('*/5 * * * *', async () => {
 });
 
 // Start server
-app.listen(PORT, () => {
-    logger.info(`Netra Gateway API running on port ${PORT}`);
-    logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+async function startServer() {
+    try {
+        // Initialize database
+        await initializeDatabase();
+        console.log('Database initialized');
+        
+        app.listen(PORT, () => {
+            logger.info(`Netra Gateway API running on port ${PORT}`);
+            logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        });
+    } catch (error) {
+        logger.error('Failed to start server:', error);
+        process.exit(1);
+    }
+}
+
+startServer();
 
 module.exports = app;
