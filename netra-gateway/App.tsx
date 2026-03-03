@@ -218,10 +218,17 @@ export default function App() {
   };
 
   const connectVPN = async () => {
+    console.log('Connecting VPN...');
+    console.log('User:', user);
+    console.log('Subscription:', subscription);
+    console.log('Is Admin:', user?.isAdmin);
+    
     if (!subscription?.active && !user?.isAdmin) {
       Alert.alert('No Subscription', 'Please subscribe first to use VPN');
       return;
     }
+    
+    console.log('User has access, proceeding with VPN connection...');
 
     if (!vpnKeys) {
       Alert.alert('Error', 'VPN keys not ready');
