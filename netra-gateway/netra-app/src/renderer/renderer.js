@@ -10,22 +10,36 @@ const state = {
     subscription: null,
     usage: null,
     plans: [],
-    vpnConfig: null
+    vpnConfig: null,
+    logs: [],
+    currentPage: 'dashboard',
+    connectionStartTime: null
 };
 
 // DOM Elements
 const elements = {
-    // Sections
+    // Sidebar
+    sidebar: document.getElementById('sidebar'),
+    menuToggle: document.getElementById('menuToggle'),
+    navItems: document.querySelectorAll('.nav-item'),
+    
+    // User info mini
+    userAvatar: document.getElementById('userAvatar'),
+    userNameMini: document.getElementById('userNameMini'),
+    userPlanMini: document.getElementById('userPlanMini'),
+    logoutBtnMini: document.getElementById('logoutBtnMini'),
+    
+    // Pages
+    pageTitle: document.getElementById('pageTitle'),
     authSection: document.getElementById('authSection'),
-    dashboardSection: document.getElementById('dashboardSection'),
+    dashboardPage: document.getElementById('dashboardPage'),
+    plansPage: document.getElementById('plansPage'),
+    subscriptionPage: document.getElementById('subscriptionPage'),
+    logsPage: document.getElementById('logsPage'),
     
     // Auth Forms
-    loginForm: document.getElementById('loginForm'),
-    registerForm: document.getElementById('registerForm'),
     loginFormElement: document.getElementById('loginFormElement'),
     registerFormElement: document.getElementById('registerFormElement'),
-    
-    // Switch forms
     showRegister: document.getElementById('showRegister'),
     showLogin: document.getElementById('showLogin'),
     
@@ -33,22 +47,39 @@ const elements = {
     connectionStatus: document.getElementById('connectionStatus'),
     vpnIcon: document.getElementById('vpnIcon'),
     connectBtn: document.getElementById('connectBtn'),
+    connectionInfo: document.getElementById('connectionInfo'),
     
-    // Stats
-    planBadge: document.getElementById('planBadge'),
-    dataUsed: document.getElementById('dataUsed'),
-    dataLimit: document.getElementById('dataLimit'),
-    timeRemaining: document.getElementById('timeRemaining'),
+    // Quick Stats
+    quickPlan: document.getElementById('quickPlan'),
+    quickData: document.getElementById('quickData'),
+    quickTime: document.getElementById('quickTime'),
+    
+    // Usage
     usagePercent: document.getElementById('usagePercent'),
     usageFill: document.getElementById('usageFill'),
+    dataUsed: document.getElementById('dataUsed'),
+    dataLimit: document.getElementById('dataLimit'),
     
     // Plans
     plansGrid: document.getElementById('plansGrid'),
     
-    // User
-    userName: document.getElementById('userName'),
-    userEmail: document.getElementById('userEmail'),
-    logoutBtn: document.getElementById('logoutBtn'),
+    // Subscription Details
+    planBadge: document.getElementById('planBadge'),
+    planName: document.getElementById('planName'),
+    planPrice: document.getElementById('planPrice'),
+    detailPlanType: document.getElementById('detailPlanType'),
+    detailDataLimit: document.getElementById('detailDataLimit'),
+    detailDuration: document.getElementById('detailDuration'),
+    detailStatus: document.getElementById('detailStatus'),
+    detailStarted: document.getElementById('detailStarted'),
+    detailExpires: document.getElementById('detailExpires'),
+    timeUsed: document.getElementById('timeUsed'),
+    timeRemaining: document.getElementById('timeRemaining'),
+    
+    // Logs
+    logsContainer: document.getElementById('logsContainer'),
+    logFilter: document.getElementById('logFilter'),
+    clearLogsBtn: document.getElementById('clearLogsBtn'),
     
     // Loading & Toast
     loadingOverlay: document.getElementById('loadingOverlay'),
@@ -65,6 +96,7 @@ async function init() {
     loadStoredAuth();
     setupEventListeners();
     setupIPCListeners();
+    addLog('info', 'Application started');
     
     if (state.token) {
         await loadDashboard();
@@ -100,6 +132,23 @@ function clearAuth() {
 
 // Event Listeners
 function setupEventListeners() {
+    // Menu toggle
+    elements.menuToggle.addEventListener('click', () => {
+        elements.sidebar.classList.toggle('open');
+    });
+    
+    // Navigation
+    elements.navItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const page = item.dataset.page;
+            navigateTo(page);
+        });
+    });
+    
+    // Logout buttons
+    elements.logoutBtnMini.addEventListener('click', handleLogout);
+    
     // Login
     elements.loginFormElement.addEventListener('submit', handleLogin);
     
@@ -109,32 +158,79 @@ function setupEventListeners() {
     // Switch forms
     elements.showRegister.addEventListener('click', (e) => {
         e.preventDefault();
-        elements.loginForm.classList.add('hidden');
-        elements.registerForm.classList.remove('hidden');
+        document.getElementById('loginForm').classList.add('hidden');
+        document.getElementById('registerForm').classList.remove('hidden');
     });
     
     elements.showLogin.addEventListener('click', (e) => {
         e.preventDefault();
-        elements.registerForm.classList.add('hidden');
-        elements.loginForm.classList.remove('hidden');
+        document.getElementById('registerForm').classList.add('hidden');
+        document.getElementById('loginForm').classList.remove('hidden');
     });
     
     // Connect button
     elements.connectBtn.addEventListener('click', handleConnect);
     
-    // Logout
-    elements.logoutBtn.addEventListener('click', handleLogout);
+    // Log filter
+    elements.logFilter.addEventListener('change', filterLogs);
+    
+    // Clear logs
+    elements.clearLogsBtn.addEventListener('click', clearLogs);
 }
 
 function setupIPCListeners() {
     if (!window.netraAPI) return;
     
-    // Tray events
     window.netraAPI.onTrayConnect(() => handleConnect());
     window.netraAPI.onTrayDisconnect(() => handleDisconnect());
     window.netraAPI.onMenuConnect(() => handleConnect());
     window.netraAPI.onMenuDisconnect(() => handleDisconnect());
-    window.netraAPI.onOpenSettings(() => console.log('Open settings'));
+}
+
+// Navigation
+function navigateTo(page) {
+    state.currentPage = page;
+    
+    // Update nav
+    elements.navItems.forEach(item => {
+        item.classList.toggle('active', item.dataset.page === page);
+    });
+    
+    // Update page title
+    const titles = {
+        dashboard: 'Dashboard',
+        plans: 'Plans',
+        subscription: 'Subscription',
+        logs: 'Logs'
+    };
+    elements.pageTitle.textContent = titles[page] || 'Dashboard';
+    
+    // Show page
+    elements.dashboardPage.classList.add('hidden');
+    elements.plansPage.classList.add('hidden');
+    elements.subscriptionPage.classList.add('hidden');
+    elements.logsPage.classList.add('hidden');
+    
+    switch(page) {
+        case 'dashboard':
+            elements.dashboardPage.classList.remove('hidden');
+            break;
+        case 'plans':
+            elements.plansPage.classList.remove('hidden');
+            loadPlans();
+            break;
+        case 'subscription':
+            elements.subscriptionPage.classList.remove('hidden');
+            loadSubscriptionDetails();
+            break;
+        case 'logs':
+            elements.logsPage.classList.remove('hidden');
+            renderLogs();
+            break;
+    }
+    
+    // Close sidebar on mobile
+    elements.sidebar.classList.remove('open');
 }
 
 // Auth Handlers
@@ -145,6 +241,7 @@ async function handleLogin(e) {
     const password = document.getElementById('loginPassword').value;
     
     showLoading('Signing in...');
+    addLog('info', `Attempting login for ${email}`);
     
     try {
         const result = await window.netraAPI.login({ email, password });
@@ -152,12 +249,15 @@ async function handleLogin(e) {
         if (result.success) {
             saveAuth(result.data.token, result.data.user);
             showToast('Welcome back!', 'success');
+            addLog('info', `Login successful for ${email}`);
             await loadDashboard();
         } else {
             showToast(result.error || 'Login failed', 'error');
+            addLog('error', `Login failed for ${email}: ${result.error}`);
         }
     } catch (error) {
         showToast('Connection error. Please try again.', 'error');
+        addLog('error', `Login error: ${error.message}`);
     } finally {
         hideLoading();
     }
@@ -171,6 +271,7 @@ async function handleRegister(e) {
     const password = document.getElementById('registerPassword').value;
     
     showLoading('Creating account...');
+    addLog('info', `Creating account for ${email}`);
     
     try {
         const result = await window.netraAPI.register({ name, email, password });
@@ -178,18 +279,22 @@ async function handleRegister(e) {
         if (result.success) {
             saveAuth(result.data.token, result.data.user);
             showToast('Account created successfully!', 'success');
+            addLog('info', `Account created for ${email}`);
             await loadDashboard();
         } else {
             showToast(result.error || 'Registration failed', 'error');
+            addLog('error', `Registration failed: ${result.error}`);
         }
     } catch (error) {
         showToast('Connection error. Please try again.', 'error');
+        addLog('error', `Registration error: ${error.message}`);
     } finally {
         hideLoading();
     }
 }
 
 async function handleLogout() {
+    addLog('info', 'User logged out');
     try {
         await window.netraAPI.logout();
     } catch (e) {}
@@ -215,36 +320,43 @@ async function loadDashboard() {
 
 function showAuthSection() {
     elements.authSection.classList.remove('hidden');
-    elements.dashboardSection.classList.add('hidden');
+    elements.dashboardPage.classList.add('hidden');
+    elements.plansPage.classList.add('hidden');
+    elements.subscriptionPage.classList.add('hidden');
+    elements.logsPage.classList.add('hidden');
+    elements.sidebar.classList.add('hidden');
 }
 
 function showDashboardSection() {
     elements.authSection.classList.add('hidden');
-    elements.dashboardSection.classList.remove('hidden');
+    elements.sidebar.classList.remove('hidden');
+    elements.dashboardPage.classList.remove('hidden');
+    navigateTo('dashboard');
 }
 
 function updateUserInfo() {
     if (state.user) {
-        elements.userName.textContent = state.user.name || 'User';
-        elements.userEmail.textContent = state.user.email || '';
+        const initials = state.user.name ? state.user.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U';
+        elements.userAvatar.textContent = initials;
+        elements.userNameMini.textContent = state.user.name || 'User';
     }
 }
 
 // Subscription
 async function loadSubscription() {
     try {
-        console.log('Loading subscription...');
+        addLog('info', 'Loading subscription...');
         const result = await window.netraAPI.getSubscriptionStatus();
-        console.log('Subscription result:', result);
+        
         if (result.success) {
             state.subscription = result.data;
-            console.log('Subscription loaded:', state.subscription);
             updateSubscriptionUI();
+            addLog('info', 'Subscription loaded successfully');
         } else {
-            console.error('Failed to load subscription:', result.error);
+            addLog('error', `Failed to load subscription: ${result.error}`);
         }
     } catch (error) {
-        console.error('Failed to load subscription:', error);
+        addLog('error', `Failed to load subscription: ${error.message}`);
     }
 }
 
@@ -253,36 +365,34 @@ function updateSubscriptionUI() {
     if (!sub) return;
     
     const planName = sub.isAdmin ? 'VIP Unlimited' : (sub.plan?.name || 'Free Trial');
-    const badge = elements.planBadge;
-    badge.textContent = planName;
+    const isPremium = sub.plan?.type === 'premium' || sub.isAdmin;
     
-    if (sub.plan?.type === 'premium' || sub.isAdmin) {
-        badge.classList.add('premium');
-    } else {
-        badge.classList.remove('premium');
-    }
+    // Quick stats
+    elements.quickPlan.textContent = planName;
+    elements.userPlanMini.textContent = planName;
     
-    // Update data limits
+    // Data
     const used = sub.usage?.bytesUsed || 0;
-    const limit = sub.isAdmin ? 999999999999999 : (sub.plan?.dataLimit || 100 * 1024 * 1024); // 100MB default
+    const limit = sub.isAdmin ? 999999999999999 : (sub.plan?.dataLimit || 100 * 1024 * 1024);
     
-    elements.dataUsed.textContent = formatBytes(used);
-    elements.dataLimit.textContent = sub.isAdmin ? '∞' : formatBytes(limit);
+    elements.quickData.textContent = formatBytes(used);
     
-    // Update time remaining
+    // Time
     if (sub.isAdmin) {
-        elements.timeRemaining.textContent = '∞ Lifetime';
-    } else if (sub.expiresAt) {
-        const remaining = new Date(sub.expiresAt) - new Date();
-        elements.timeRemaining.textContent = remaining > 0 ? formatTime(remaining) : 'Expired';
+        elements.quickTime.textContent = '∞';
+    } else if (sub.expires_at) {
+        const remaining = new Date(sub.expires_at) - new Date();
+        elements.quickTime.textContent = remaining > 0 ? formatTime(remaining) : 'Expired';
     } else {
-        elements.timeRemaining.textContent = 'Unlimited';
+        elements.quickTime.textContent = 'Unlimited';
     }
     
-    // Update usage progress
+    // Usage progress
     const percent = sub.isAdmin ? 0 : Math.min((used / limit) * 100, 100);
     elements.usagePercent.textContent = `${percent.toFixed(1)}%`;
     elements.usageFill.style.width = `${percent}%`;
+    elements.dataUsed.textContent = `${formatBytes(used)} used`;
+    elements.dataLimit.textContent = `of ${formatBytes(limit)}`;
     
     if (percent > 90) {
         elements.usageFill.classList.add('danger');
@@ -295,21 +405,56 @@ function updateSubscriptionUI() {
     }
 }
 
+function loadSubscriptionDetails() {
+    const sub = state.subscription;
+    if (!sub) return;
+    
+    const planName = sub.isAdmin ? 'VIP Unlimited' : (sub.plan?.name || 'Free Trial');
+    const isPremium = sub.plan?.type === 'premium' || sub.isAdmin;
+    
+    elements.planBadge.textContent = planName;
+    elements.planBadge.classList.toggle('premium', isPremium);
+    elements.planName.textContent = planName;
+    elements.planPrice.innerHTML = sub.isAdmin ? 'Free<span>/lifetime</span>' : `$${sub.plan?.price || 0}<span>/${sub.plan?.interval || 'once'}</span>`;
+    
+    elements.detailPlanType.textContent = isPremium ? 'Premium' : (sub.plan?.type || 'Free');
+    elements.detailDataLimit.textContent = sub.isAdmin ? 'Unlimited' : formatBytes(sub.plan?.dataLimit || 100 * 1024 * 1024);
+    elements.detailDuration.textContent = sub.isAdmin ? 'Lifetime' : (sub.plan?.interval || 'Once');
+    elements.detailStatus.textContent = sub.active ? 'Active' : 'Inactive';
+    elements.detailStarted.textContent = sub.starts_at ? formatDate(sub.starts_at) : '--';
+    elements.detailExpires.textContent = sub.isAdmin ? 'Never' : (sub.expires_at ? formatDate(sub.expires_at) : 'Never');
+    
+    // Time used/remaining
+    if (state.connectionStartTime) {
+        const used = Date.now() - state.connectionStartTime;
+        elements.timeUsed.textContent = formatTime(used);
+    } else {
+        elements.timeUsed.textContent = '0h 0m';
+    }
+    
+    if (sub.isAdmin) {
+        elements.timeRemaining.textContent = '∞';
+    } else if (sub.expires_at) {
+        const remaining = new Date(sub.expires_at) - new Date();
+        elements.timeRemaining.textContent = remaining > 0 ? formatTime(remaining) : 'Expired';
+    } else {
+        elements.timeRemaining.textContent = 'Unlimited';
+    }
+}
+
 // Plans
 async function loadPlans() {
     try {
-        console.log('Loading plans...');
+        addLog('info', 'Loading plans...');
         const result = await window.netraAPI.getPlans();
-        console.log('Plans result:', result);
+        
         if (result.success) {
             state.plans = result.data;
-            console.log('Plans loaded:', state.plans.length);
             renderPlans();
-        } else {
-            console.error('Failed to load plans:', result.error);
+            addLog('info', `Loaded ${state.plans.length} plans`);
         }
     } catch (error) {
-        console.error('Failed to load plans:', error);
+        addLog('error', `Failed to load plans: ${error.message}`);
     }
 }
 
@@ -320,7 +465,10 @@ function renderPlans() {
         <div class="plan-card" data-id="${plan.id}" onclick="selectPlan('${plan.id}')">
             <div class="plan-name">${plan.name}</div>
             <div class="plan-price">$${plan.price}<span>/${plan.interval}</span></div>
-            <div class="plan-data">${formatBytes(plan.dataLimit)}</div>
+            <div class="plan-data">${formatBytes(plan.data_limit)}</div>
+            <div class="plan-features">
+                ${(plan.features || []).map(f => `<div class="plan-feature">${f}</div>`).join('')}
+            </div>
         </div>
     `).join('');
 }
@@ -331,7 +479,7 @@ window.selectPlan = async function(planId) {
         card.classList.toggle('selected', card.dataset.id === planId);
     });
     
-    // Purchase
+    addLog('info', `Selected plan: ${planId}`);
     showLoading('Processing payment...');
     
     try {
@@ -339,12 +487,15 @@ window.selectPlan = async function(planId) {
         
         if (result.success) {
             showToast('Plan purchased successfully!', 'success');
+            addLog('info', `Plan ${planId} purchased successfully`);
             await loadSubscription();
         } else {
             showToast(result.error || 'Purchase failed', 'error');
+            addLog('error', `Purchase failed: ${result.error}`);
         }
     } catch (error) {
         showToast('Payment error. Please try again.', 'error');
+        addLog('error', `Payment error: ${error.message}`);
     } finally {
         hideLoading();
     }
@@ -369,7 +520,7 @@ function updateUsageUI() {
         const used = state.usage.bytesUsed || 0;
         const limit = state.subscription?.plan?.dataLimit || 100 * 1024 * 1024;
         
-        elements.dataUsed.textContent = formatBytes(used);
+        elements.quickData.textContent = formatBytes(used);
         
         const percent = Math.min((used / limit) * 100, 100);
         elements.usagePercent.textContent = `${percent.toFixed(1)}%`;
@@ -402,6 +553,7 @@ function updateVPNUI(status) {
         elements.vpnIcon.classList.add('connected');
         elements.connectBtn.classList.add('connected');
         btnText.innerHTML = '<span>◉</span> Disconnect';
+        elements.connectionInfo.textContent = 'Secure connection active';
     } else if (state.isConnecting) {
         statusDot.className = 'status-dot connecting';
         statusText.textContent = 'Connecting...';
@@ -413,31 +565,29 @@ function updateVPNUI(status) {
         elements.vpnIcon.classList.remove('connected', 'connecting');
         elements.connectBtn.classList.remove('connected');
         btnText.innerHTML = '<span>◇</span> Connect';
+        elements.connectionInfo.textContent = 'Not connected';
     }
 }
 
 async function handleConnect() {
-    console.log('Subscription state:', state.subscription);
-    
     if (state.isConnected) {
         await handleDisconnect();
         return;
     }
     
-    // Robust connection check
     const sub = state.subscription;
-    const canConnect = sub && (sub.active === true || sub.isAdmin === true || sub.plan?.id === 'vip' || sub.plan?.name === 'VIP Unlimited');
-    
-    console.log('Can connect:', canConnect, 'sub:', sub);
+    const canConnect = sub && (sub.active === true || sub.isAdmin === true || sub.plan?.id === 'vip');
     
     if (!canConnect) {
         showToast('Please activate a subscription first', 'warning');
+        addLog('warning', 'Connection denied: No active subscription');
         return;
     }
     
     state.isConnecting = true;
     updateVPNUI({ connected: false });
     showLoading('Connecting to VPN...');
+    addLog('info', 'Connecting to VPN...');
     
     try {
         const result = await window.netraAPI.connectVPN();
@@ -445,13 +595,17 @@ async function handleConnect() {
         if (result.success) {
             state.vpnConfig = result.data.config;
             state.isConnected = true;
+            state.connectionStartTime = Date.now();
             showToast('Connected to VPN!', 'success');
+            addLog('info', 'VPN connected successfully');
             startUsageTracking();
         } else {
             showToast(result.error || 'Connection failed', 'error');
+            addLog('error', `VPN connection failed: ${result.error}`);
         }
     } catch (error) {
         showToast('Connection error. Please try again.', 'error');
+        addLog('error', `VPN connection error: ${error.message}`);
     } finally {
         state.isConnecting = false;
         hideLoading();
@@ -461,14 +615,17 @@ async function handleConnect() {
 
 async function handleDisconnect() {
     showLoading('Disconnecting...');
+    addLog('info', 'Disconnecting from VPN...');
     
     try {
         await window.netraAPI.disconnectVPN();
         state.isConnected = false;
+        state.connectionStartTime = null;
         showToast('Disconnected from VPN', 'success');
+        addLog('info', 'VPN disconnected');
         stopUsageTracking();
     } catch (error) {
-        console.error('Disconnect error:', error);
+        addLog('error', `Disconnect error: ${error.message}`);
     } finally {
         hideLoading();
         updateVPNUI({ connected: false });
@@ -483,13 +640,14 @@ function startUsageTracking() {
     
     usageInterval = setInterval(async () => {
         await loadUsage();
+        loadSubscriptionDetails();
         
-        // Check if subscription expired during connection
         if (state.subscription && !state.subscription.active && !state.subscription.isAdmin) {
             showToast('Subscription expired! Disconnecting...', 'warning');
+            addLog('warning', 'Subscription expired, disconnecting...');
             await handleDisconnect();
         }
-    }, 30000); // Every 30 seconds
+    }, 30000);
 }
 
 function stopUsageTracking() {
@@ -499,31 +657,52 @@ function stopUsageTracking() {
     }
 }
 
-// UI Helpers
-function showLoading(message = 'Loading...') {
-    const overlay = elements.loadingOverlay;
-    overlay.querySelector('p').textContent = message;
-    overlay.classList.remove('hidden');
-}
-
-function hideLoading() {
-    elements.loadingOverlay.classList.add('hidden');
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
+// Logs
+function addLog(level, message) {
+    const log = {
+        time: new Date(),
+        level,
+        message
+    };
+    state.logs.unshift(log);
     
-    elements.toastContainer.appendChild(toast);
+    // Keep only last 100 logs
+    if (state.logs.length > 100) {
+        state.logs.pop();
+    }
     
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 4000);
+    // Render if on logs page
+    if (state.currentPage === 'logs') {
+        renderLogs();
+    }
 }
 
-// Formatters
+function renderLogs() {
+    const filter = elements.logFilter.value;
+    const filteredLogs = filter === 'all' 
+        ? state.logs 
+        : state.logs.filter(l => l.level === filter);
+    
+    elements.logsContainer.innerHTML = filteredLogs.map(log => `
+        <div class="log-entry ${log.level}">
+            <span class="log-time">${formatTime(log.time.getTime())}</span>
+            <span class="log-level">${log.level.toUpperCase()}</span>
+            <span class="log-message">${log.message}</span>
+        </div>
+    `).join('');
+}
+
+function filterLogs() {
+    renderLogs();
+}
+
+function clearLogs() {
+    state.logs = [];
+    renderLogs();
+    addLog('info', 'Logs cleared');
+}
+
+// Utility Functions
 function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -540,8 +719,37 @@ function formatTime(ms) {
     
     if (days > 0) return `${days}d ${hours % 24}h`;
     if (hours > 0) return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0) return `${minutes}m`;
+    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
     return `${seconds}s`;
 }
 
-console.log('Renderer initialized');
+function formatDate(dateStr) {
+    if (!dateStr) return '--';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+    });
+}
+
+function showLoading(message) {
+    const loadingText = elements.loadingOverlay.querySelector('p');
+    loadingText.textContent = message;
+    elements.loadingOverlay.classList.remove('hidden');
+}
+
+function hideLoading() {
+    elements.loadingOverlay.classList.add('hidden');
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    elements.toastContainer.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
