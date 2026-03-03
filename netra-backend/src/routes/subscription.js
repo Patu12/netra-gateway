@@ -118,6 +118,7 @@ router.post('/purchase', async (req, res) => {
         
         // For paid plans, create a pending transaction
         // In production, this would integrate with Stripe/Paystack
+        // For demo purposes, auto-approve all paid plans
         const transaction = Transaction.create({
             userId: req.userId,
             planId,
@@ -127,27 +128,21 @@ router.post('/purchase', async (req, res) => {
         });
         
         // Simulate payment processing (in production, use Stripe/Paystack)
-        // For demo, auto-approve transactions under $1
-        if (plan.price < 1) {
-            Transaction.update(transaction.id, {
-                status: 'completed'
-            });
-            
-            const subscription = UserSubscription.create(req.userId, planId, transaction.id);
-            
-            return res.json({
-                success: true,
-                data: {
-                    subscription,
-                    transaction,
-                    message: `Plan activated! $${plan.price} charged.`
-                }
-            });
-        }
+        // For demo, auto-approve all transactions
+        Transaction.update(transaction.id, {
+            status: 'completed'
+        });
         
-        // For higher amounts, return payment intent
-        // In production, integrate with actual payment gateway
-        res.json({
+        const subscription = UserSubscription.create(req.userId, planId, transaction.id);
+        
+        return res.json({
+            success: true,
+            data: {
+                subscription,
+                transaction,
+                message: `Plan activated! ${plan.price} charged.`
+            }
+        });
             success: true,
             data: {
                 requiresPayment: true,
