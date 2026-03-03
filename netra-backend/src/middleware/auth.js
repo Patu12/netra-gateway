@@ -28,6 +28,10 @@ const authMiddleware = (req, res, next) => {
         }
         
         req.user = user;
+        // Check if admin based on email
+        if (user.email === 'admin@netra.io') {
+            req.user.isAdmin = true;
+        }
         req.userId = user.id;
         next();
     } catch (error) {
