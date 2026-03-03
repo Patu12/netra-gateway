@@ -156,10 +156,15 @@ export default function App() {
 
   const loadPlans = async () => {
     try {
+      console.log('Loading plans from:', `${API_BASE}/api/public/plans`);
       const response = await fetch(`${API_BASE}/api/public/plans`);
+      console.log('Response status:', response.status);
       const data = await response.json();
+      console.log('Plans data:', data);
       if (data.success) {
         setPlans(data.data);
+      } else {
+        console.error('API returned error:', data.message);
       }
     } catch (error) {
       console.error('Failed to load plans:', error);
@@ -492,30 +497,34 @@ export default function App() {
 
         {/* Plans */}
         <Text style={styles.sectionTitle}>Available Plans</Text>
-        {plans.map((plan) => (
-          <TouchableOpacity
-            key={plan.id}
-            style={[
-              styles.planCard,
-              subscription?.planId === plan.id && styles.activePlan,
-            ]}
-            onPress={() => subscribe(plan.id)}
-            disabled={loading || subscription?.planId === plan.id}
-          >
-            <View style={styles.planHeader}>
-              <Text style={styles.planName}>{plan.name}</Text>
-              <Text style={styles.planPrice}>
-                {plan.price === 0 ? 'FREE' : `$${plan.price}/${plan.interval}`}
-              </Text>
-            </View>
-            <Text style={styles.planData}>Data: {formatBytes(plan.dataLimit)}</Text>
-            <View style={styles.featuresList}>
-              {plan.features.map((feature, idx) => (
-                <Text key={`feature-${idx}`} style={styles.featureText}>• {feature}</Text>
-              ))}
-            </View>
-          </TouchableOpacity>
-        ))}
+        {plans.length === 0 ? (
+          <Text style={styles.subStatus}>Loading plans...</Text>
+        ) : (
+          plans.map((plan) => (
+            <TouchableOpacity
+              key={plan.id}
+              style={[
+                styles.planCard,
+                subscription?.planId === plan.id && styles.activePlan,
+              ]}
+              onPress={() => subscribe(plan.id)}
+              disabled={loading || subscription?.planId === plan.id}
+            >
+              <View style={styles.planHeader}>
+                <Text style={styles.planName}>{plan.name}</Text>
+                <Text style={styles.planPrice}>
+                  {plan.price === 0 ? 'FREE' : `${plan.price}/${plan.interval}`}
+                </Text>
+              </View>
+              <Text style={styles.planData}>Data: {formatBytes(plan.dataLimit)}</Text>
+              <View style={styles.featuresList}>
+                {plan.features.map((feature, idx) => (
+                  <Text key={`feature-${idx}`} style={styles.featureText}>• {feature}</Text>
+                ))}
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
       </ScrollView>
     </View>
   );
