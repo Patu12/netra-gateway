@@ -1,4 +1,4 @@
-const { UsageLog, VPNSession, vpnServers } = require('../database/models');
+const { pool, UsageLog, VPNSession, UserSubscription } = require('../database/models');
 
 /**
  * Log usage stats periodically
@@ -7,47 +7,44 @@ const { UsageLog, VPNSession, vpnServers } = require('../database/models');
 async function logUsageStats() {
     console.log('Logging usage stats...');
     
-    // Get all active VPN sessions
-    const sessions = Array.from(VPNSession._userSubs?.values() || []);
-    
-    for (const userId of sessions) {
-        const session = VPNSession.findByUserId(userId);
+    // Get all active VPN sessions from database
+    try {
+        const sessionsResult = await pool.query(
+            'SELECT * FROM vpn_sessions WHERE connected = true'
+        );
         
-        if (!session || !session.active) continue;
+        for (const session of sessionsResult.rows) {
+            // Simulate some usage (in production, this would come from actual VPN metrics)
+            const simulatedBytes = Math.floor(Math.random() * 1024 * 1024); // 0-1MB
+            
+            await UsageLog.upsert(session.user_id, simulatedBytes);
+            
+            console.log(`Logged ${simulatedBytes} bytes for user ${session.user_id}`);
+        }
         
-        // Simulate some usage (in production, this would come from actual VPN metrics)
-        const simulatedBytes = Math.floor(Math.random() * 1024 * 1024); // 0-1MB
-        
-        UsageLog.create({
-            userId,
-            bytesUsed: simulatedBytes,
-            duration: 300, // 5 minutes in seconds
-            serverId: session.serverId,
-            source: 'heartbeat'
-        });
-        
-        console.log(`Logged ${simulatedBytes} bytes for user ${userId}`);
+        console.log('Usage stats logging complete');
+    } catch (error) {
+        console.error('Error logging usage stats:', error);
     }
-    
-    console.log('Usage stats logging complete');
 }
 
 /**
  * Get current usage data for a user
  */
 async function getCurrentUsage(userId) {
-    const bytesUsed = UsageLog.getTotalUsage(userId);
-    const session = VPNSession.findByUserId(userId);
+    const usageLog = await UsageLog.findByUserId(userId);
+    const subscription = await UserSubscription.findByUserId(userId);
+    const session = await VPNSession.findByUserId(userId);
     
-    const subscription = require('../database/models').UserSubscription.findByUserId(userId);
-    const dataLimit = subscription?.plan?.dataLimit || 0;
+    const bytesUsed = usageLog?.bytes_used || 0;
+    const dataLimit = subscription?.data_limit || 0;
     
     return {
         bytesUsed,
         dataLimit,
         remaining: Math.max(0, dataLimit - bytesUsed),
         percentUsed: dataLimit > 0 ? (bytesUsed / dataLimit) * 100 : 0,
-        sessionActive: session?.active || false
+        sessionActive: session?.connected || false
     };
 }
 
@@ -55,9 +52,11 @@ async function getCurrentUsage(userId) {
  * Check if user has exceeded data limit
  */
 async function checkDataLimit(userId) {
-    const bytesUsed = UsageLog.getTotalUsage(userId);
-    const subscription = require('../database/models').UserSubscription.findByUserId(userId);
-    const dataLimit = subscription?.plan?.dataLimit || 0;
+    const usageLog = await UsageLog.findByUserId(userId);
+    const subscription = await UserSubscription.findByUserId(userId);
+    
+    const bytesUsed = usageLog?.bytes_used || 0;
+    const dataLimit = subscription?.data_limit || 0;
     
     return {
         exceeded: bytesUsed >= dataLimit,
@@ -71,8 +70,6 @@ async function checkDataLimit(userId) {
  * Get aggregated usage by time period
  */
 async function getUsageByPeriod(userId, period = 'day') {
-    const logs = UsageLog.findByUserId(userId, 1000);
-    
     const now = new Date();
     let startTime;
     
@@ -93,10 +90,15 @@ async function getUsageByPeriod(userId, period = 'day') {
             startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     }
     
-    const filteredLogs = logs.filter(log => new Date(log.timestamp) >= startTime);
+    const result = await pool.query(
+        `SELECT * FROM usage_logs WHERE user_id = $1 AND last_activity >= $2`,
+        [userId, startTime]
+    );
     
-    const totalBytes = filteredLogs.reduce((sum, log) => sum + (log.bytesUsed || 0), 0);
-    const totalDuration = filteredLogs.reduce((sum, log) => sum + (log.duration || 0), 0);
+    const logs = result.rows;
+    
+    const totalBytes = logs.reduce((sum, log) => sum + (log.bytes_used || 0), 0);
+    const totalDuration = logs.reduce((sum, log) => sum + (log.session_count || 0), 0) * 300; // Assuming 5 min sessions
     
     return {
         period,
@@ -104,7 +106,7 @@ async function getUsageByPeriod(userId, period = 'day') {
         endTime: now.toISOString(),
         bytesUsed: totalBytes,
         duration: totalDuration,
-        sessionCount: filteredLogs.length
+        sessionCount: logs.length
     };
 }
 
