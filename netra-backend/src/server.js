@@ -58,10 +58,10 @@ app.get('/health', (req, res) => {
 });
 
 // Public routes - no authentication required
-app.get('/api/public/plans', (req, res) => {
+app.get('/api/public/plans', async (req, res) => {
     try {
         const { SubscriptionPlan } = require('./database/models');
-        const plans = SubscriptionPlan.findAll();
+        const plans = await SubscriptionPlan.findAll();
         res.json({ success: true, data: plans });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Error fetching plans' });
