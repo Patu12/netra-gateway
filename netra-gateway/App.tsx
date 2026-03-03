@@ -85,6 +85,7 @@ export default function App() {
   const [connecting, setConnecting] = useState(false);
   const [useTailscale, setUseTailscale] = useState(false);
   const [vpnKeys, setVpnKeys] = useState<WireGuardKeys | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
 
   // Initialize WireGuard keys on first launch
   useEffect(() => {
@@ -114,7 +115,7 @@ export default function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.id}`,
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({ publicKey: vpnKeys.publicKey }),
       });
@@ -138,12 +139,13 @@ export default function App() {
       });
       const data = await response.json();
       if (data.success) {
-        // Extract isAdmin from response (backend returns it in data.data)
+        // Extract isAdmin and token from response (backend returns user in data.data)
         const userWithAdmin = {
-          ...data.user,
+          ...data.data.user,
           isAdmin: data.data?.isAdmin || data.isAdmin || false
         };
         setUser(userWithAdmin);
+        setAuthToken(data.data.token); // Store the auth token
         setIsLoggedIn(true);
       } else {
         Alert.alert('Login Failed', data.message || 'Invalid credentials');
@@ -175,7 +177,7 @@ export default function App() {
     if (!user) return;
     try {
       const response = await fetch(`${API_BASE}/api/subscription/status`, {
-        headers: { Authorization: `Bearer ${user.id}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       const data = await response.json();
       if (data.success) {
@@ -200,7 +202,7 @@ export default function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.id}`,
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({ planId }),
       });
@@ -227,10 +229,10 @@ export default function App() {
     let hasAccess = subscription?.active || user?.isAdmin;
     
     // If no local access, check server directly
-    if (!hasAccess && user) {
+    if (!hasAccess && user && authToken) {
       try {
         const response = await fetch(`${API_BASE}/api/subscription/status`, {
-          headers: { Authorization: `Bearer ${user.id}` },
+          headers: { Authorization: `Bearer ${authToken}` },
         });
         const data = await response.json();
         if (data.success && (data.data?.isAdmin || data.data?.active)) {
@@ -278,7 +280,7 @@ export default function App() {
       try {
         // Fetch config from backend
         const response = await fetch(`${API_BASE}/api/vpn/config`, {
-          headers: { Authorization: `Bearer ${user.id}` },
+          headers: { Authorization: `Bearer ${authToken}` },
         });
         const data = await response.json();
         
@@ -351,6 +353,7 @@ export default function App() {
   const logout = () => {
     setIsLoggedIn(false);
     setUser(null);
+    setAuthToken(null);
     setEmail('');
     setPassword('');
     setVpnConnected(false);
