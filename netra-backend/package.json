@@ -4,8 +4,8 @@
   "description": "Netra Gateway Backend API",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": "node --max-old-space-size=512 src/server.js",
+    "dev": "node --watch --max-old-space-size=512 src/server.js",
     "migrate": "node src/database/migrate.js"
   },
   "author": "Netra Team",
