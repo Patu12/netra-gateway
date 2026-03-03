@@ -138,10 +138,10 @@ export default function App() {
       });
       const data = await response.json();
       if (data.success) {
-        // Extract isAdmin from response (backend returns it separately)
+        // Extract isAdmin from response (backend returns it in data.data)
         const userWithAdmin = {
           ...data.user,
-          isAdmin: data.isAdmin || false
+          isAdmin: data.data?.isAdmin || data.isAdmin || false
         };
         setUser(userWithAdmin);
         setIsLoggedIn(true);
@@ -223,7 +223,29 @@ export default function App() {
     console.log('Subscription:', subscription);
     console.log('Is Admin:', user?.isAdmin);
     
-    if (!subscription?.active && !user?.isAdmin) {
+    // Check if user has access - either from local state OR from server
+    let hasAccess = subscription?.active || user?.isAdmin;
+    
+    // If no local access, check server directly
+    if (!hasAccess && user) {
+      try {
+        const response = await fetch(`${API_BASE}/api/subscription/status`, {
+          headers: { Authorization: `Bearer ${user.id}` },
+        });
+        const data = await response.json();
+        if (data.success && (data.data?.isAdmin || data.data?.active)) {
+          hasAccess = true;
+          setSubscription(data.data);
+          if (data.data?.isAdmin) {
+            setUser(prev => prev ? { ...prev, isAdmin: true } : null);
+          }
+        }
+      } catch (e) {
+        console.log('Could not check subscription status');
+      }
+    }
+    
+    if (!hasAccess) {
       Alert.alert('No Subscription', 'Please subscribe first to use VPN');
       return;
     }
