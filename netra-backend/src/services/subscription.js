@@ -1,4 +1,4 @@
-const { UserSubscription, VPNSession } = require('../database/models');
+const { pool, UserSubscription, VPNSession } = require('../database/models');
 const { disconnectExpiredUsers, provisionNewUser } = require('./wireguard');
 
 /**
@@ -15,29 +15,30 @@ async function cleanupExpiredSubscriptions() {
         console.log('WireGuard cleanup not available');
     }
     
-    const allUsers = require('../database/models').User.all();
+    // Find all expired subscriptions
+    const expiredSubscriptions = await pool.query(
+        `SELECT us.*, u.email FROM user_subscriptions us 
+         JOIN users u ON us.user_id = u.id 
+         WHERE us.active = true AND us.expires_at < NOW()`
+    );
     
-    for (const user of allUsers) {
-        const subscription = UserSubscription.findByUserId(user.id);
+    for (const subscription of expiredSubscriptions.rows) {
+        console.log(`Expiring subscription for user ${subscription.user_id}`);
         
-        if (!subscription) continue;
+        // Update subscription status
+        await UserSubscription.update(subscription.user_id, {
+            active: false,
+            status: 'expired'
+        });
         
-        // Check if subscription has expired
-        if (subscription.expiresAt && new Date(subscription.expiresAt) < new Date()) {
-            console.log(`Expiring subscription for user ${user.id}`);
-            
-            // Update subscription status
-            UserSubscription.update(user.id, {
-                active: false,
-                status: 'expired'
+        // Disconnect any active VPN sessions (local)
+        const session = await VPNSession.findByUserId(subscription.user_id);
+        if (session && session.connected) {
+            await VPNSession.update(subscription.user_id, {
+                connected: false,
+                disconnected_at: new Date()
             });
-            
-            // Disconnect any active VPN sessions (local)
-            const session = VPNSession.findByUserId(user.id);
-            if (session && session.active) {
-                VPNSession.end(user.id);
-                console.log(`Disconnected local VPN for user ${user.id}`);
-            }
+            console.log(`Disconnected local VPN for user ${subscription.user_id}`);
         }
     }
     
@@ -48,7 +49,7 @@ async function cleanupExpiredSubscriptions() {
  * Check subscription validity before connection
  */
 async function validateSubscription(userId) {
-    const subscription = UserSubscription.findByUserId(userId);
+    const subscription = await UserSubscription.findByUserId(userId);
     
     if (!subscription) {
         return {
@@ -64,11 +65,11 @@ async function validateSubscription(userId) {
         };
     }
     
-    if (subscription.expiresAt && new Date(subscription.expiresAt) < new Date()) {
+    if (subscription.expires_at && new Date(subscription.expires_at) < new Date()) {
         return {
             valid: false,
             reason: 'EXPIRED',
-            expiresAt: subscription.expiresAt
+            expiresAt: subscription.expires_at
         };
     }
     
@@ -82,8 +83,8 @@ async function validateSubscription(userId) {
  * Extend subscription duration
  */
 async function extendSubscription(userId, planId) {
-    const subscription = UserSubscription.findByUserId(userId);
-    const plan = require('../database/models').SubscriptionPlan.findById(planId);
+    const subscription = await UserSubscription.findByUserId(userId);
+    const plan = await require('../database/models').SubscriptionPlan.findById(planId);
     
     if (!plan) {
         throw new Error('Plan not found');
@@ -92,9 +93,9 @@ async function extendSubscription(userId, planId) {
     const now = new Date();
     let expiresAt;
     
-    if (subscription && subscription.expiresAt && new Date(subscription.expiresAt) > now) {
+    if (subscription && subscription.expires_at && new Date(subscription.expires_at) > now) {
         // Extend from current expiration
-        expiresAt = new Date(new Date(subscription.expiresAt).getTime() + plan.duration);
+        expiresAt = new Date(new Date(subscription.expires_at).getTime() + plan.duration);
     } else {
         // Start fresh
         expiresAt = new Date(now.getTime() + plan.duration);
@@ -105,7 +106,7 @@ async function extendSubscription(userId, planId) {
         plan,
         active: true,
         status: 'active',
-        expiresAt: expiresAt.toISOString()
+        expires_at: expiresAt.toISOString()
     });
 }
 
