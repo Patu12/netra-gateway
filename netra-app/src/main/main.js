@@ -51,7 +51,7 @@ let authToken = null;
 
 const API = axios.create({
     baseURL: API_URL,
-    timeout: 10000,
+    timeout: 30000,
     headers: { 'Content-Type': 'application/json' }
 });
 
@@ -345,7 +345,13 @@ function setupIPC() {
             return response.data; // Return the data directly
         } catch (error) {
             log.error('Get subscription status failed:', error.message);
-            return { success: false, error: error.message };
+            
+            // Handle 502 Bad Gateway - backend sleeping
+            if (error.response?.status === 502) {
+                return { success: false, error: 'Server is waking up. Please try again.', message: 'Server is waking up. Please try again.' };
+            }
+            
+            return { success: false, error: error.message, message: error.message };
         }
     });
 
@@ -357,7 +363,13 @@ function setupIPC() {
             return response.data; // Return the data directly
         } catch (error) {
             log.error('Get plans failed:', error.message);
-            return { success: false, error: error.message };
+            
+            // Handle 502 Bad Gateway - backend sleeping
+            if (error.response?.status === 502) {
+                return { success: false, error: 'Server is waking up. Please try again.', message: 'Server is waking up. Please try again.' };
+            }
+            
+            return { success: false, error: error.message, message: error.message };
         }
     });
 
@@ -374,10 +386,20 @@ function setupIPC() {
     ipcMain.handle('subscription:purchase', async (event, planId) => {
         try {
             log.info('Purchase attempt for plan:', planId);
+            log.info('Current auth token:', authToken ? 'present' : 'missing');
+            
             const response = await API.post('/api/subscription/purchase', { planId });
+            log.info('Purchase response:', JSON.stringify(response.data));
             return { success: true, data: response.data };
         } catch (error) {
             log.error('Purchase failed:', error.message);
+            log.error('Error response:', error.response?.data);
+            
+            // Handle 502 Bad Gateway - backend sleeping
+            if (error.code === 'ECONNREFUSED' || error.response?.status === 502) {
+                return { success: false, error: 'Server is waking up. Please try again in 30 seconds.' };
+            }
+            
             return { success: false, error: error.response?.data?.message || error.message };
         }
     });

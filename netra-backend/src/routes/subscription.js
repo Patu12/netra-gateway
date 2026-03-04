@@ -94,7 +94,7 @@ router.post('/purchase', async (req, res) => {
             });
         }
         
-        const plan = SubscriptionPlan.findById(planId);
+        const plan = await SubscriptionPlan.findById(planId);
         
         if (!plan) {
             return res.status(404).json({
@@ -104,8 +104,8 @@ router.post('/purchase', async (req, res) => {
         }
         
         // Free plan - no payment needed
-        if (plan.price === 0) {
-            const subscription = UserSubscription.create(req.userId, planId, 'free');
+        if (parseFloat(plan.price) === 0) {
+            const subscription = await UserSubscription.create(req.userId, planId, 'free');
             
             return res.json({
                 success: true,
@@ -119,7 +119,7 @@ router.post('/purchase', async (req, res) => {
         // For paid plans, create a transaction
         // In production, this would integrate with Stripe/Paystack
         // For demo purposes, auto-approve all paid plans
-        const transaction = Transaction.create({
+        const transaction = await Transaction.create({
             userId: req.userId,
             planId,
             amount: plan.price,
@@ -130,11 +130,11 @@ router.post('/purchase', async (req, res) => {
         
         // Simulate payment processing (in production, use Stripe/Paystack)
         // For demo, auto-approve all transactions
-        Transaction.update(transaction.id, {
+        await Transaction.update(transaction.id, {
             status: 'completed'
         });
         
-        const subscription = UserSubscription.create(req.userId, planId, transaction.id);
+        const subscription = await UserSubscription.create(req.userId, planId, transaction.id);
         
         return res.json({
             success: true,

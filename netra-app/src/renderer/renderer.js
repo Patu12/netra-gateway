@@ -489,6 +489,7 @@ window.selectPlan = async function(planId) {
             showToast('Plan purchased successfully!', 'success');
             addLog('info', `Plan ${planId} purchased successfully`);
             await loadSubscription();
+            navigateTo('dashboard');
         } else {
             showToast(result.error || 'Purchase failed', 'error');
             addLog('error', `Purchase failed: ${result.error}`);
