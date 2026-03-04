@@ -46,7 +46,7 @@ let tray = null;
 let isQuitting = false;
 
 // API Configuration
-const API_URL = process.env.API_URL || 'https://netra-backend-99n0.onrender.com';
+const API_URL = process.env.API_URL || 'http://localhost:3001';
 let authToken = null;
 
 const API = axios.create({
