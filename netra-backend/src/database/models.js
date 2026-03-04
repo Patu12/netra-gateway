@@ -243,19 +243,47 @@ const UserSubscription = {
 
 // Transaction operations
 const Transaction = {
-  create(userId, planId, amount, currency, type, status, paymentId) {
+  create(data) {
     return pool.query(
       'INSERT INTO transactions (user_id, plan_id, amount, currency, type, status, payment_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [userId, planId, amount, currency, type, status, paymentId]
+      [data.userId, data.planId, data.amount, data.currency, data.type, data.status || 'pending', data.paymentId || null]
+    ).then(result => result.rows[0]);
+  },
+  
+  update(id, data) {
+    const fields = [];
+    const values = [];
+    let paramCount = 1;
+    
+    if (data.status) {
+      fields.push(`status = ${paramCount++}`);
+      values.push(data.status);
+    }
+    if (data.paymentId) {
+      fields.push(`payment_id = ${paramCount++}`);
+      values.push(data.paymentId);
+    }
+    
+    if (fields.length === 0) return Promise.resolve(null);
+    
+    values.push(id);
+    return pool.query(
+      `UPDATE transactions SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ${paramCount} RETURNING *`,
+      values
     ).then(result => result.rows[0]);
   }
 };
 
 // Usage log operations
 const UsageLog = {
-  findByUserId(userId) {
-    return pool.query('SELECT * FROM usage_logs WHERE user_id = $1', [userId])
-      .then(result => result.rows[0]);
+  findByUserId(userId, limit = 10) {
+    return pool.query('SELECT * FROM usage_logs WHERE user_id = $1 ORDER BY last_activity DESC LIMIT $2', [userId, limit])
+      .then(result => result.rows);
+  },
+
+  getTotalUsage(userId) {
+    return pool.query('SELECT COALESCE(SUM(bytes_used), 0) as total FROM usage_logs WHERE user_id = $1', [userId])
+      .then(result => parseInt(result.rows[0]?.total || 0));
   },
 
   upsert(userId, bytesUsed) {
@@ -331,5 +359,6 @@ module.exports = {
   UserSubscription,
   Transaction,
   UsageLog,
-  VpnSession
+  VpnSession,
+  VPNSession: VpnSession  // Alias for backwards compatibility
 };

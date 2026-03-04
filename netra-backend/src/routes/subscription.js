@@ -116,7 +116,7 @@ router.post('/purchase', async (req, res) => {
             });
         }
         
-        // For paid plans, create a pending transaction
+        // For paid plans, create a transaction
         // In production, this would integrate with Stripe/Paystack
         // For demo purposes, auto-approve all paid plans
         const transaction = Transaction.create({
@@ -124,7 +124,8 @@ router.post('/purchase', async (req, res) => {
             planId,
             amount: plan.price,
             currency: 'USD',
-            type: 'purchase'
+            type: 'purchase',
+            status: 'pending'
         });
         
         // Simulate payment processing (in production, use Stripe/Paystack)
@@ -141,18 +142,6 @@ router.post('/purchase', async (req, res) => {
                 subscription,
                 transaction,
                 message: `Plan activated! ${plan.price} charged.`
-            }
-        });
-            success: true,
-            data: {
-                requiresPayment: true,
-                transaction,
-                paymentIntent: {
-                    clientSecret: `pi_demo_${transaction.id}_secret`,
-                    amount: plan.price * 100, // cents
-                    currency: 'usd'
-                },
-                message: 'Please complete payment'
             }
         });
     } catch (error) {
