@@ -4,6 +4,15 @@ const { Pool } = require('pg');
 // Get database URL from environment or use default
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://netra:8z19dpR4XCPHSIikqSEDxWPGEP0irA9M@dpg-d6jk5kjh46gs73bfjq00-a.oregon-postgres.render.com/netra_peqm';
 
+// VPN servers list
+const vpnServers = [
+    { id: 'us-east', name: 'US East', country: 'US', load: 45, region: 'americas' },
+    { id: 'us-west', name: 'US West', country: 'US', load: 30, region: 'americas' },
+    { id: 'eu-west', name: 'Europe West', country: 'DE', load: 25, region: 'europe' },
+    { id: 'asia-east', name: 'Asia East', country: 'JP', load: 60, region: 'asia' },
+    { id: 'uk-london', name: 'UK London', country: 'GB', load: 40, region: 'europe' }
+];
+
 // Create connection pool
 const pool = new Pool({
   connectionString: DATABASE_URL,
@@ -360,5 +369,6 @@ module.exports = {
   Transaction,
   UsageLog,
   VpnSession,
-  VPNSession: VpnSession  // Alias for backwards compatibility
+  VPNSession: VpnSession,  // Alias for backwards compatibility
+  vpnServers  // VPN server list
 };
