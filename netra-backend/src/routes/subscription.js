@@ -4,9 +4,9 @@ const { SubscriptionPlan, UserSubscription, Transaction, UsageLog } = require('.
 const router = express.Router();
 
 // GET /api/subscription/plans
-router.get('/plans', (req, res) => {
+router.get('/plans', async (req, res) => {
     try {
-        const plans = SubscriptionPlan.findAll();
+        const plans = await SubscriptionPlan.findAll();
         
         res.json({
             success: true,
@@ -22,7 +22,7 @@ router.get('/plans', (req, res) => {
 });
 
 // GET /api/subscription/status
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
     try {
         // Check if user is admin
         if (req.user && req.user.email === 'admin@netra.io') {
@@ -41,7 +41,7 @@ router.get('/status', (req, res) => {
             });
         }
         
-        const subscription = UserSubscription.findByUserId(req.userId);
+        const subscription = await UserSubscription.findByUserId(req.userId);
         
         if (!subscription) {
             // Return default free trial
@@ -154,7 +154,7 @@ router.post('/purchase', async (req, res) => {
 });
 
 // POST /api/admin/grant-subscription (admin only)
-router.post('/admin/grant', (req, res) => {
+router.post('/admin/grant', async (req, res) => {
     try {
         const { userId, planId } = req.body;
         
@@ -174,7 +174,7 @@ router.post('/admin/grant', (req, res) => {
         }
         
         // Grant subscription
-        const subscription = UserSubscription.create(userId, planId, 'admin-grant');
+        const subscription = await UserSubscription.create(userId, planId, 'admin-grant');
         
         res.json({
             success: true,
@@ -191,9 +191,9 @@ router.post('/admin/grant', (req, res) => {
 });
 
 // POST /api/subscription/cancel
-router.post('/cancel', (req, res) => {
+router.post('/cancel', async (req, res) => {
     try {
-        const subscription = UserSubscription.cancel(req.userId);
+        const subscription = await UserSubscription.cancel(req.userId);
         
         if (!subscription) {
             return res.status(404).json({
@@ -219,9 +219,9 @@ router.post('/cancel', (req, res) => {
 });
 
 // GET /api/subscription/transactions
-router.get('/transactions', (req, res) => {
+router.get('/transactions', async (req, res) => {
     try {
-        const transactions = Transaction.findByUserId(req.userId);
+        const transactions = await Transaction.findByUserId(req.userId);
         
         res.json({
             success: true,
