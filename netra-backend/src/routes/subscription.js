@@ -24,52 +24,23 @@ router.get('/plans', async (req, res) => {
 // GET /api/subscription/status
 router.get('/status', async (req, res) => {
     try {
-        // Check if user is admin
-        if (req.user && req.user.email === 'admin@netra.io') {
-            return res.json({
-                success: true,
-                data: {
-                    active: true,
-                    plan: { id: 'vip', name: 'VIP Unlimited', dataLimit: 999999999999999 },
-                    isAdmin: true,
-                    usage: {
-                        bytesUsed: 0,
-                        dataLimit: 999999999999999,
-                        remaining: 999999999999999
-                    }
-                }
-            });
-        }
-        
-        const subscription = await UserSubscription.findByUserId(req.userId);
-        
-        if (!subscription) {
-            // Return default free trial
-            return res.json({
-                success: true,
-                data: {
-                    active: false,
-                    plan: SubscriptionPlan.findById('free'),
-                    usage: {
-                        bytesUsed: 0,
-                        dataLimit: 100 * 1024 * 1024,
-                        remaining: 100 * 1024 * 1024
-                    }
-                }
-            });
-        }
-        
-        // Get current usage
-        const bytesUsed = UsageLog.getTotalUsage(req.userId);
-        
-        res.json({
+        // ALL users get free access - no subscription required
+        return res.json({
             success: true,
             data: {
-                ...subscription,
+                active: true,
+                plan: { 
+                    id: 'free', 
+                    name: 'Free Access', 
+                    type: 'free',
+                    dataLimit: 999999999999999,
+                    price: '0.00'
+                },
+                isAdmin: req.user && req.user.email === 'admin@netra.io',
                 usage: {
-                    bytesUsed,
-                    dataLimit: subscription.plan?.dataLimit || 0,
-                    remaining: Math.max(0, (subscription.plan?.dataLimit || 0) - bytesUsed)
+                    bytesUsed: 0,
+                    dataLimit: 999999999999999,
+                    remaining: 999999999999999
                 }
             }
         });
