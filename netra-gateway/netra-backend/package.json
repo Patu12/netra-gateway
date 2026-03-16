@@ -4,21 +4,23 @@
   "description": "Netra Gateway Backend API",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": "node --max-old-space-size=512 src/server.js",
+    "dev": "node --watch --max-old-space-size=512 src/server.js",
     "migrate": "node src/database/migrate.js"
   },
   "author": "Netra Team",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^12.6.2",
     "cors": "^2.8.5",
+    "express": "^4.18.2",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "bcryptjs": "^2.4.3",
-    "uuid": "^9.0.1",
-    "stripe": "^14.5.0",
     "node-cron": "^3.0.3",
+    "pg": "^8.11.3",
+    "stripe": "^14.5.0",
+    "uuid": "^9.0.1",
     "winston": "^3.11.0"
   }
 }

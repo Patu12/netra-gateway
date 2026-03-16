@@ -1,4 +1,4 @@
-const { pool, UserSubscription, VPNSession } = require('../database/models');
+const { db, UserSubscription, VPNSession } = require('../database/models');
 const { disconnectExpiredUsers, provisionNewUser } = require('./wireguard');
 
 /**
@@ -16,13 +16,13 @@ async function cleanupExpiredSubscriptions() {
     }
     
     // Find all expired subscriptions
-    const expiredSubscriptions = await pool.query(
+    const expiredSubscriptions = db.prepare(
         `SELECT us.*, u.email FROM user_subscriptions us 
          JOIN users u ON us.user_id = u.id 
-         WHERE us.active = true AND us.expires_at < NOW()`
-    );
+         WHERE us.active = 1 AND us.expires_at IS NOT NULL AND us.expires_at < datetime('now')`
+    ).all();
     
-    for (const subscription of expiredSubscriptions.rows) {
+    for (const subscription of expiredSubscriptions) {
         console.log(`Expiring subscription for user ${subscription.user_id}`);
         
         // Update subscription status

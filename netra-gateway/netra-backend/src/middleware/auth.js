@@ -3,7 +3,7 @@ const { User } = require('../database/models');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'netra-gateway-secret-key-change-in-production';
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
         
@@ -18,7 +18,7 @@ const authMiddleware = (req, res, next) => {
         
         const decoded = jwt.verify(token, JWT_SECRET);
         
-        const user = User.findById(decoded.userId);
+        const user = await User.findById(decoded.userId);
         
         if (!user) {
             return res.status(401).json({
@@ -28,6 +28,10 @@ const authMiddleware = (req, res, next) => {
         }
         
         req.user = user;
+        // Check if admin based on email
+        if (user.email === 'admin@netra.io') {
+            req.user.isAdmin = true;
+        }
         req.userId = user.id;
         next();
     } catch (error) {

@@ -29,6 +29,9 @@ const elements = {
     userPlanMini: document.getElementById('userPlanMini'),
     logoutBtnMini: document.getElementById('logoutBtnMini'),
     
+    // Tailscale status
+    tailscaleStatus: document.getElementById('tailscaleStatus'),
+    
     // Pages
     pageTitle: document.getElementById('pageTitle'),
     authSection: document.getElementById('authSection'),
@@ -97,6 +100,9 @@ async function init() {
     setupEventListeners();
     setupIPCListeners();
     addLog('info', 'Application started');
+    
+    // Check Tailscale status on startup
+    checkTailscaleStatus();
     
     if (state.token) {
         await loadDashboard();
@@ -314,8 +320,61 @@ async function loadDashboard() {
         loadSubscription(),
         loadPlans(),
         loadUsage(),
-        loadVPNStatus()
+        loadVPNStatus(),
+        loadProxyInfo()
     ]);
+}
+
+// Proxy Info
+async function loadProxyInfo() {
+    try {
+        addLog('info', 'Loading proxy info...');
+        const result = await window.netraAPI.getProxyInfo();
+        
+        if (result.success && result.data) {
+            const proxyIP = result.data.host;
+            const proxyPort = result.data.port;
+            
+            // Update UI elements
+            const proxyIPEl = document.getElementById('proxyIP');
+            const proxyPortEl = document.getElementById('proxyPort');
+            const instrIPEl = document.getElementById('instrIP');
+            
+            if (proxyIPEl) proxyIPEl.textContent = proxyIP;
+            if (proxyPortEl) proxyPortEl.textContent = proxyPort;
+            if (instrIPEl) instrIPEl.textContent = proxyIP;
+            
+            addLog('info', `Proxy ready: ${proxyIP}:${proxyPort}`);
+        }
+        
+        // Also load Tailscale status
+        await loadTailscaleForProxy();
+    } catch (error) {
+        addLog('error', `Failed to load proxy info: ${error.message}`);
+    }
+}
+
+// Load Tailscale for remote proxy
+async function loadTailscaleForProxy() {
+    try {
+        const result = await window.netraAPI.getTailscaleStatus();
+        
+        if (result.success && result.data) {
+            const tailscaleIPEl = document.getElementById('tailscaleIP');
+            const tailscaleInstrIPEl = document.getElementById('tailscaleInstrIP');
+            
+            if (result.data.running && result.data.ip) {
+                if (tailscaleIPEl) tailscaleIPEl.textContent = result.data.ip;
+                if (tailscaleInstrIPEl) tailscaleInstrIPEl.textContent = result.data.ip;
+                addLog('info', `Tailscale ready: ${result.data.ip}`);
+            } else {
+                if (tailscaleIPEl) tailscaleIPEl.textContent = 'Not Connected';
+                if (tailscaleInstrIPEl) tailscaleInstrIPEl.textContent = '100.x.x.x';
+            }
+        }
+    } catch (error) {
+        addLog('error', `Failed to load Tailscale: ${error.message}`);
+    }
 }
 
 function showAuthSection() {
@@ -501,6 +560,50 @@ window.selectPlan = async function(planId) {
         hideLoading();
     }
 };
+
+// Tailscale Status
+let tailscaleStatus = null;
+
+async function checkTailscaleStatus() {
+    try {
+        const result = await window.netraAPI.getTailscaleStatus();
+        if (result.success) {
+            tailscaleStatus = result.data;
+            console.log('Tailscale status:', tailscaleStatus);
+            
+            // Update UI
+            if (elements.tailscaleStatus) {
+                const tsDot = elements.tailscaleStatus.querySelector('.ts-dot');
+                const tsText = elements.tailscaleStatus.querySelector('.ts-text');
+                
+                if (tailscaleStatus.canShareInternet) {
+                    tsDot.className = 'ts-dot connected';
+                    tsText.textContent = 'Gateway Active';
+                } else if (tailscaleStatus.running) {
+                    tsDot.className = 'ts-dot warning';
+                    tsText.textContent = 'Setup Needed';
+                } else {
+                    tsDot.className = 'ts-dot disconnected';
+                    tsText.textContent = 'Tailscale';
+                }
+            }
+            
+            // Show toast messages
+            if (!tailscaleStatus.running) {
+                showToast('Tailscale not detected. Click to install.', 'warning', 10000);
+                addLog('warning', 'Tailscale not installed');
+            } else if (!tailscaleStatus.canShareInternet) {
+                showToast('Tailscale needs configuration for internet sharing', 'info', 10000);
+                addLog('info', 'Tailscale needs subnet/exit node enabled');
+            } else {
+                showToast('Tailscale ready - internet sharing enabled!', 'success');
+                addLog('info', 'Tailscale is configured for internet sharing');
+            }
+        }
+    } catch (error) {
+        console.error('Failed to check Tailscale status:', error);
+    }
+}
 
 // Usage
 async function loadUsage() {

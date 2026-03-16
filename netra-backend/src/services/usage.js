@@ -1,4 +1,4 @@
-const { pool, UsageLog, VPNSession, UserSubscription } = require('../database/models');
+const { db, UsageLog, VPNSession, UserSubscription } = require('../database/models');
 
 /**
  * Log usage stats periodically
@@ -9,11 +9,11 @@ async function logUsageStats() {
     
     // Get all active VPN sessions from database
     try {
-        const sessionsResult = await pool.query(
-            'SELECT * FROM vpn_sessions WHERE connected = true'
-        );
+        const sessionsResult = db.prepare(
+            'SELECT * FROM vpn_sessions WHERE connected = 1'
+        ).all();
         
-        for (const session of sessionsResult.rows) {
+        for (const session of sessionsResult) {
             // Simulate some usage (in production, this would come from actual VPN metrics)
             const simulatedBytes = Math.floor(Math.random() * 1024 * 1024); // 0-1MB
             

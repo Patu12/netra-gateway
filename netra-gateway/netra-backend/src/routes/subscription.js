@@ -4,9 +4,9 @@ const { SubscriptionPlan, UserSubscription, Transaction, UsageLog } = require('.
 const router = express.Router();
 
 // GET /api/subscription/plans
-router.get('/plans', (req, res) => {
+router.get('/plans', async (req, res) => {
     try {
-        const plans = SubscriptionPlan.findAll();
+        const plans = await SubscriptionPlan.findAll();
         
         res.json({
             success: true,
@@ -22,54 +22,25 @@ router.get('/plans', (req, res) => {
 });
 
 // GET /api/subscription/status
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
     try {
-        // Check if user is admin
-        if (req.user && req.user.email === 'admin@netra.io') {
-            return res.json({
-                success: true,
-                data: {
-                    active: true,
-                    plan: { id: 'vip', name: 'VIP Unlimited', dataLimit: 999999999999999 },
-                    isAdmin: true,
-                    usage: {
-                        bytesUsed: 0,
-                        dataLimit: 999999999999999,
-                        remaining: 999999999999999
-                    }
-                }
-            });
-        }
-        
-        const subscription = UserSubscription.findByUserId(req.userId);
-        
-        if (!subscription) {
-            // Return default free trial
-            return res.json({
-                success: true,
-                data: {
-                    active: false,
-                    plan: SubscriptionPlan.findById('free'),
-                    usage: {
-                        bytesUsed: 0,
-                        dataLimit: 100 * 1024 * 1024,
-                        remaining: 100 * 1024 * 1024
-                    }
-                }
-            });
-        }
-        
-        // Get current usage
-        const bytesUsed = UsageLog.getTotalUsage(req.userId);
-        
-        res.json({
+        // ALL users get free access - no subscription required
+        return res.json({
             success: true,
             data: {
-                ...subscription,
+                active: true,
+                plan: { 
+                    id: 'free', 
+                    name: 'Free Access', 
+                    type: 'free',
+                    dataLimit: 999999999999999,
+                    price: '0.00'
+                },
+                isAdmin: req.user && req.user.email === 'admin@netra.io',
                 usage: {
-                    bytesUsed,
-                    dataLimit: subscription.plan?.dataLimit || 0,
-                    remaining: Math.max(0, (subscription.plan?.dataLimit || 0) - bytesUsed)
+                    bytesUsed: 0,
+                    dataLimit: 999999999999999,
+                    remaining: 999999999999999
                 }
             }
         });
@@ -94,7 +65,7 @@ router.post('/purchase', async (req, res) => {
             });
         }
         
-        const plan = SubscriptionPlan.findById(planId);
+        const plan = await SubscriptionPlan.findById(planId);
         
         if (!plan) {
             return res.status(404).json({
@@ -104,8 +75,8 @@ router.post('/purchase', async (req, res) => {
         }
         
         // Free plan - no payment needed
-        if (plan.price === 0) {
-            const subscription = UserSubscription.create(req.userId, planId, 'free');
+        if (parseFloat(plan.price) === 0) {
+            const subscription = await UserSubscription.create(req.userId, planId, 'free');
             
             return res.json({
                 success: true,
@@ -116,48 +87,32 @@ router.post('/purchase', async (req, res) => {
             });
         }
         
-        // For paid plans, create a pending transaction
+        // For paid plans, create a transaction
         // In production, this would integrate with Stripe/Paystack
-        const transaction = Transaction.create({
+        // For demo purposes, auto-approve all paid plans
+        const transaction = await Transaction.create({
             userId: req.userId,
             planId,
             amount: plan.price,
             currency: 'USD',
-            type: 'purchase'
+            type: 'purchase',
+            status: 'pending'
         });
         
         // Simulate payment processing (in production, use Stripe/Paystack)
-        // For demo, auto-approve transactions under $1
-        if (plan.price < 1) {
-            Transaction.update(transaction.id, {
-                status: 'completed'
-            });
-            
-            const subscription = UserSubscription.create(req.userId, planId, transaction.id);
-            
-            return res.json({
-                success: true,
-                data: {
-                    subscription,
-                    transaction,
-                    message: `Plan activated! $${plan.price} charged.`
-                }
-            });
-        }
+        // For demo, auto-approve all transactions
+        await Transaction.update(transaction.id, {
+            status: 'completed'
+        });
         
-        // For higher amounts, return payment intent
-        // In production, integrate with actual payment gateway
-        res.json({
+        const subscription = await UserSubscription.create(req.userId, planId, transaction.id);
+        
+        return res.json({
             success: true,
             data: {
-                requiresPayment: true,
+                subscription,
                 transaction,
-                paymentIntent: {
-                    clientSecret: `pi_demo_${transaction.id}_secret`,
-                    amount: plan.price * 100, // cents
-                    currency: 'usd'
-                },
-                message: 'Please complete payment'
+                message: `Plan activated! ${plan.price} charged.`
             }
         });
     } catch (error) {
@@ -169,10 +124,47 @@ router.post('/purchase', async (req, res) => {
     }
 });
 
-// POST /api/subscription/cancel
-router.post('/cancel', (req, res) => {
+// POST /api/admin/grant-subscription (admin only)
+router.post('/admin/grant', async (req, res) => {
     try {
-        const subscription = UserSubscription.cancel(req.userId);
+        const { userId, planId } = req.body;
+        
+        if (!userId || !planId) {
+            return res.status(400).json({
+                success: false,
+                message: 'userId and planId are required'
+            });
+        }
+        
+        // Check if admin
+        if (!req.user || req.user.email !== 'admin@netra.io') {
+            return res.status(403).json({
+                success: false,
+                message: 'Admin access required'
+            });
+        }
+        
+        // Grant subscription
+        const subscription = await UserSubscription.create(userId, planId, 'admin-grant');
+        
+        res.json({
+            success: true,
+            data: { subscription },
+            message: `Subscription activated for plan ${planId}`
+        });
+    } catch (error) {
+        console.error('Grant subscription error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error granting subscription'
+        });
+    }
+});
+
+// POST /api/subscription/cancel
+router.post('/cancel', async (req, res) => {
+    try {
+        const subscription = await UserSubscription.cancel(req.userId);
         
         if (!subscription) {
             return res.status(404).json({
@@ -198,9 +190,9 @@ router.post('/cancel', (req, res) => {
 });
 
 // GET /api/subscription/transactions
-router.get('/transactions', (req, res) => {
+router.get('/transactions', async (req, res) => {
     try {
-        const transactions = Transaction.findByUserId(req.userId);
+        const transactions = await Transaction.findByUserId(req.userId);
         
         res.json({
             success: true,

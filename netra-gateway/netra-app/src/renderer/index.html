@@ -58,6 +58,10 @@
                     <span id="pageTitle">Dashboard</span>
                 </div>
                 <div class="header-actions">
+                    <div class="tailscale-status" id="tailscaleStatus" title="Tailscale Status">
+                        <span class="ts-dot disconnected"></span>
+                        <span class="ts-text">Tailscale</span>
+                    </div>
                     <div class="connection-status" id="connectionStatus">
                         <span class="status-dot disconnected"></span>
                         <span class="status-text">Disconnected</span>
@@ -186,6 +190,64 @@
                         <div class="usage-details">
                             <span id="dataUsed">0 MB used</span>
                             <span id="dataLimit">of 100 MB</span>
+                        </div>
+                    </div>
+
+                    <!-- Share Internet Section -->
+                    <div class="share-section">
+                        <div class="section-header">
+                            <h3>🌐 Share Your Internet</h3>
+                            <span class="status-badge active" id="proxyStatus">Active</span>
+                        </div>
+                        <div class="share-details">
+                            <p>Other devices can connect through your PC to use your internet connection.</p>
+                            
+                            <!-- Local Network Section -->
+                            <div class="share-method">
+                                <h4>📶 Local Network (Same WiFi)</h4>
+                                <div class="share-info">
+                                    <div class="share-item">
+                                        <span class="share-label">Proxy IP:</span>
+                                        <span class="share-value" id="proxyIP">Loading...</span>
+                                    </div>
+                                    <div class="share-item">
+                                        <span class="share-label">Port:</span>
+                                        <span class="share-value" id="proxyPort">1080</span>
+                                    </div>
+                                </div>
+                                <div class="share-instructions">
+                                    <h4>How to connect:</h4>
+                                    <ol>
+                                        <li>On your phone/laptop, go to WiFi settings</li>
+                                        <li>Set proxy to <strong>Manual</strong></li>
+                                        <li>Enter IP: <span id="instrIP">192.168.x.x</span> and Port: <strong>1080</strong></li>
+                                    </ol>
+                                </div>
+                            </div>
+                            
+                            <!-- Remote Section (Tailscale) -->
+                            <div class="share-method remote">
+                                <h4>🌍 Anywhere (Worldwide via Tailscale)</h4>
+                                <div class="share-info">
+                                    <div class="share-item">
+                                        <span class="share-label">Tailscale IP:</span>
+                                        <span class="share-value" id="tailscaleIP">Loading...</span>
+                                    </div>
+                                    <div class="share-item">
+                                        <span class="share-label">Port:</span>
+                                        <span class="share-value">1080</span>
+                                    </div>
+                                </div>
+                                <div class="share-instructions">
+                                    <h4>How to connect from anywhere:</h4>
+                                    <ol>
+                                        <li>Install Tailscale on your device (tailscale.com/download)</li>
+                                        <li>Login with the same account as this PC</li>
+                                        <li>Connect to this PC's Tailscale network</li>
+                                        <li>Set proxy to Manual, use IP: <span id="tailscaleInstrIP">100.x.x.x</span>, Port: <strong>1080</strong></li>
+                                    </ol>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </section>

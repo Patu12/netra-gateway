@@ -4,16 +4,16 @@ const { UsageLog, VPNSession } = require('../database/models');
 const router = express.Router();
 
 // GET /api/usage/stats
-router.get('/stats', (req, res) => {
+router.get('/stats', async (req, res) => {
     try {
         // Get current session
-        const session = VPNSession.findByUserId(req.userId);
+        const session = await VPNSession.findByUserId(req.userId);
         
         // Get total usage
-        const bytesUsed = UsageLog.getTotalUsage(req.userId);
+        const bytesUsed = await UsageLog.getTotalUsage(req.userId);
         
         // Get recent logs
-        const recentLogs = UsageLog.findByUserId(req.userId, 10);
+        const recentLogs = await UsageLog.findByUserId(req.userId, 10);
         
         res.json({
             success: true,
@@ -35,7 +35,7 @@ router.get('/stats', (req, res) => {
 });
 
 // POST /api/usage/report
-router.post('/report', (req, res) => {
+router.post('/report', async (req, res) => {
     try {
         const { bytesUsed, duration, serverId } = req.body;
         
@@ -48,7 +48,7 @@ router.post('/report', (req, res) => {
         }
         
         // Create usage log
-        const log = UsageLog.create({
+        const log = await UsageLog.create({
             userId: req.userId,
             bytesUsed,
             duration: duration || 0,
@@ -57,9 +57,9 @@ router.post('/report', (req, res) => {
         });
         
         // Update session if active
-        const session = VPNSession.findByUserId(req.userId);
+        const session = await VPNSession.findByUserId(req.userId);
         if (session) {
-            VPNSession.update(req.userId, {
+            await VPNSession.update(req.userId, {
                 bytesUsed: (session.bytesUsed || 0) + bytesUsed,
                 lastReportedAt: new Date().toISOString()
             });
@@ -70,7 +70,7 @@ router.post('/report', (req, res) => {
             data: {
                 logged: true,
                 bytesUsed: log.bytesUsed,
-                totalUsed: UsageLog.getTotalUsage(req.userId)
+                totalUsed: await UsageLog.getTotalUsage(req.userId)
             }
         });
     } catch (error) {
@@ -83,11 +83,11 @@ router.post('/report', (req, res) => {
 });
 
 // GET /api/usage/history
-router.get('/history', (req, res) => {
+router.get('/history', async (req, res) => {
     try {
         const { limit = 50, offset = 0 } = req.query;
         
-        const allLogs = UsageLog.findByUserId(req.userId, 1000);
+        const allLogs = await UsageLog.findByUserId(req.userId, 1000);
         const total = allLogs.length;
         
         const logs = allLogs

@@ -31,11 +31,8 @@ router.post('/register', async (req, res) => {
             });
         }
         
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
-        // Create user
-        const user = await User.create(email, hashedPassword, name);
+        // Create user (password will be hashed in the model)
+        const user = await User.create(email, password, name);
         
         // Create free trial subscription
         const subscription = await UserSubscription.create(user.id, 'free', 'free-trial');

@@ -8,8 +8,206 @@ const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
 
-// Tailscale configuration
-const TAILSCALE_IP = '100.102.117.30'; // Your Tailscale IP
+// Tailscale API configuration
+const TAILSCALE_API_URL = process.env.TAILSCALE_API_URL || 'https://api.tailscale.com';
+const TAILNET_NAME = process.env.TAILNET_NAME || 'tail73ead7.ts.net';
+const TAILSCALE_API_KEY = process.env.TAILSCALE_API_KEY;
+const GATEWAY_DEVICE = process.env.GATEWAY_DEVICE || 'lenovo';
+
+// Get Tailscale IP dynamically
+function getTailscaleIP() {
+    return new Promise((resolve) => {
+        exec('tailscale ip -4', (error, stdout, stderr) => {
+            if (error) {
+                console.log('Tailscale not running, using default');
+                resolve(null);
+                return;
+            }
+            const ip = stdout.trim();
+            if (ip && ip.startsWith('100.')) {
+                TAILSCALE_IP = ip;
+                resolve(ip);
+            } else {
+                resolve(null);
+            }
+        });
+    });
+}
+
+/**
+ * Check the gateway status by querying Tailscale API
+ * Looks for the gateway device (lenovo) in the network
+ */
+async function checkGatewayStatus() {
+    // If no API key is configured, fall back to local Tailscale status
+    if (!TAILSCALE_API_KEY) {
+        console.log('No Tailscale API key configured, using local status');
+        return checkGatewayStatusLocal();
+    }
+
+    try {
+        const url = `${TAILSCALE_API_URL}/api/v2/tailnet/${TAILNET_NAME}/devices`;
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${TAILSCALE_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Tailscale API error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const devices = data.devices || [];
+        
+        // Find the gateway device by hostname
+        const gateway = devices.find(d => d.hostname === GATEWAY_DEVICE);
+        
+        if (!gateway) {
+            return {
+                status: 'error',
+                message: `Gateway device '${GATEWAY_DEVICE}' not found on network.`,
+                hostname: GATEWAY_DEVICE,
+                online: false,
+                exit_node_active: false,
+                tailscale_ip: null
+            };
+        }
+
+        return {
+            status: 'success',
+            hostname: gateway.hostname,
+            online: gateway.online || false,
+            exit_node_active: gateway.exitNode || false,
+            tailscale_ip: gateway.addresses?.[0] || null,
+            last_seen: gateway.lastSeen || null
+        };
+    } catch (error) {
+        console.error('Error checking gateway status:', error.message);
+        // Fall back to local check
+        return checkGatewayStatusLocal();
+    }
+}
+
+/**
+ * Fallback: Check gateway status using local Tailscale status command
+ */
+function checkGatewayStatusLocal() {
+    return new Promise((resolve) => {
+        exec('tailscale status --json', (error, stdout, stderr) => {
+            if (error) {
+                resolve({
+                    status: 'error',
+                    message: 'Tailscale not running or not configured',
+                    hostname: GATEWAY_DEVICE,
+                    online: false,
+                    exit_node_active: false,
+                    tailscale_ip: null
+                });
+                return;
+            }
+
+            try {
+                const status = JSON.parse(stdout);
+                const peers = status.Peer || {};
+                
+                // Find the gateway device in peers
+                let gatewayFound = false;
+                let isOnline = false;
+                let isExitNode = false;
+                let tailscaleIP = null;
+
+                for (const [peerKey, peerData] of Object.entries(peers)) {
+                    // Check by hostname in peer info
+                    if (peerData.HostName?.toLowerCase() === GATEWAY_DEVICE.toLowerCase()) {
+                        gatewayFound = true;
+                        isOnline = peerData.Online === true;
+                        isExitNode = peerData.ExitNode === true;
+                        tailscaleIP = peerData.TailscaleIPs?.[0] || null;
+                        break;
+                    }
+                }
+
+                // Also check Self for the gateway (if this machine IS the gateway)
+                if (!gatewayFound && status.Self?.HostName?.toLowerCase() === GATEWAY_DEVICE.toLowerCase()) {
+                    gatewayFound = true;
+                    isOnline = true;
+                    isExitNode = status.Self.ExitNode === true;
+                    tailscaleIP = status.Self?.TailscaleIPs?.[0] || null;
+                }
+
+                if (!gatewayFound) {
+                    resolve({
+                        status: 'error',
+                        message: `Gateway device '${GATEWAY_DEVICE}' not found on network.`,
+                        hostname: GATEWAY_DEVICE,
+                        online: false,
+                        exit_node_active: false,
+                        tailscale_ip: null
+                    });
+                    return;
+                }
+
+                resolve({
+                    status: 'success',
+                    hostname: GATEWAY_DEVICE,
+                    online: isOnline,
+                    exit_node_active: isExitNode,
+                    tailscale_ip: tailscaleIP
+                });
+            } catch (e) {
+                resolve({
+                    status: 'error',
+                    message: 'Failed to parse Tailscale status',
+                    hostname: GATEWAY_DEVICE,
+                    online: false,
+                    exit_node_active: false,
+                    tailscale_ip: null
+                });
+            }
+        });
+    });
+}
+
+// Check if Tailscale is running and get status
+function checkTailscaleStatus() {
+    return new Promise((resolve) => {
+        exec('tailscale status --json', (error, stdout, stderr) => {
+            if (error) {
+                resolve({ running: false, ip: null, subnetRoutes: false, isExitNode: false });
+                return;
+            }
+            try {
+                const status = JSON.parse(stdout);
+                const ip = status.Self?.TailscaleIPs?.[0] || null;
+                const subnetRoutes = status.Self?.AdvertiseRoutes?.length > 0;
+                const isExitNode = status.Self?.ExitNode === true;
+                if (ip) TAILSCALE_IP = ip;
+                resolve({ running: true, ip, subnetRoutes, isExitNode });
+            } catch (e) {
+                resolve({ running: false, ip: null, subnetRoutes: false, isExitNode: false });
+            }
+        });
+    });
+}
+
+// Enable subnet router (advertise routes)
+function enableSubnetRouter() {
+    return new Promise((resolve) => {
+        exec('tailscale up --advertise-routes', (error, stdout, stderr) => {
+            if (error) {
+                console.log('Could not advertise routes:', error.message);
+                resolve(false);
+                return;
+            }
+            console.log('Subnet router enabled - your internet is now shareable!');
+            resolve(true);
+        });
+    });
+}
 
 // WireGuard path for Windows
 const WG_EXE = '"C:\\Program Files\\WireGuard\\wg.exe"';
@@ -41,14 +239,17 @@ function generateClientConfig(userId, userEmail) {
     // Store peer info
     peers.set(userId, config);
     
+    // Use dynamic Tailscale IP or fallback
+    const gatewayIP = TAILSCALE_IP || '100.64.1.1';
+    
     // Generate Tailscale/WireGuard config file content
     const wgConfig = `# Netra Gateway - Tailscale VPN Configuration
-# This PC's Tailscale IP: ${TAILSCALE_IP}
+# This PC's Tailscale IP: ${gatewayIP}
 # Users can connect to this IP using Tailscale
 
 [Connection Details]
 Protocol: Tailscale (WireGuard-based)
-Gateway IP: ${TAILSCALE_IP}
+Gateway IP: ${gatewayIP}
 Port: 443 (HTTPS)
 
 [How to Connect]
@@ -63,7 +264,7 @@ DNS = 8.8.8.8, 1.1.1.1
 
 [Peer]
 PublicKey = TailscaleDefault
-Endpoint = ${TAILSCALE_IP}:443
+Endpoint = ${gatewayIP}:443
 AllowedIPs = 0.0.0.0/0, ::/0
 PersistentKeepalive = 25`;
 
@@ -219,5 +420,10 @@ module.exports = {
     disconnectExpiredUsers,
     getActivePeersCount,
     getActivePeers,
-    peers
+    peers,
+    getTailscaleIP,
+    checkTailscaleStatus,
+    enableSubnetRouter,
+    checkGatewayStatus,
+    get TAILSCALE_IP() { return TAILSCALE_IP; }
 };

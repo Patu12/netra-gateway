@@ -1,7 +1,59 @@
 const express = require('express');
 const { VPNSession, vpnServers } = require('../database/models');
+const wireguard = require('../services/wireguard');
 
 const router = express.Router();
+
+// GET /api/vpn/tailscale-status
+// Check if Tailscale is running and get gateway info (public endpoint)
+router.get('/tailscale-status', async (req, res) => {
+    try {
+        const status = await wireguard.checkTailscaleStatus();
+        const ip = await wireguard.getTailscaleIP();
+        
+        res.json({
+            success: true,
+            data: {
+                running: status.running,
+                ip: ip || status.ip,
+                subnetRoutes: status.subnetRoutes,
+                canShareInternet: status.running && status.subnetRoutes,
+                message: status.running 
+                    ? (status.subnetRoutes 
+                        ? 'Tailscale is running and advertising routes - users can connect!'
+                        : 'Tailscale is running but not advertising routes. Enable subnet router in Tailscale app.')
+                    : 'Tailscale is not running. Install and start Tailscale to share internet.'
+            }
+        });
+    } catch (error) {
+        console.error('Tailscale status error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error checking Tailscale status'
+        });
+    }
+});
+
+// POST /api/vpn/enable-subnet
+// Enable subnet router to share internet
+router.post('/enable-subnet', async (req, res) => {
+    try {
+        const success = await wireguard.enableSubnetRouter();
+        
+        res.json({
+            success: success,
+            message: success 
+                ? 'Subnet router enabled! Your internet is now shareable via Tailscale.'
+                : 'Could not enable subnet router. Make sure Tailscale is installed and running.'
+        });
+    } catch (error) {
+        console.error('Enable subnet error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error enabling subnet router'
+        });
+    }
+});
 
 // POST /api/vpn/register-key
 // Mobile app sends its public key so gateway is ready
@@ -189,8 +241,11 @@ router.post('/connect', async (req, res) => {
         // Select best server (lowest load)
         const server = availableServers.sort((a, b) => a.load - b.load)[0];
         
-        // Create VPN session
-        const session = VPNSession.create(req.userId, server.id);
+        // Create VPN session (add await since it's async)
+        const session = await VPNSession.create(req.userId, server.id);
+        
+        // Attach server info to session for config generation
+        session.server = server;
         
         if (!session) {
             return res.status(500).json({
@@ -297,6 +352,10 @@ router.post('/heartbeat', (req, res) => {
 // Helper functions
 function generateVPNConfig(session) {
     const server = session.server;
+    const wireguard = require('../services/wireguard');
+    
+    // Get Tailscale IP dynamically
+    const gatewayIP = wireguard.TAILSCALE_IP || server.host || '100.64.1.1';
     
     // Generate WireGuard configuration
     // In production, these would be real WireGuard keys
@@ -304,8 +363,8 @@ function generateVPNConfig(session) {
         type: 'wireguard',
         protocol: 'UDP',
         server: {
-            host: server.host,
-            port: server.port,
+            host: gatewayIP,
+            port: server.port || 51820,
             publicKey: generateMockKey(),
             allowedIPs: '0.0.0.0/0, ::/0'
         },
@@ -315,7 +374,12 @@ function generateVPNConfig(session) {
             dns: ['1.1.1.1', '8.8.8.8']
         },
         // Keep-alive to prevent connection drops
-        persistentKeepalive: 25
+        persistentKeepalive: 25,
+        // Tailscale-specific info
+        tailscale: {
+            gatewayIP: gatewayIP,
+            isAvailable: !!wireguard.TAILSCALE_IP
+        }
     };
 }
 

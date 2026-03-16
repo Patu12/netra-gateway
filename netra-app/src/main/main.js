@@ -46,7 +46,7 @@ let tray = null;
 let isQuitting = false;
 
 // API Configuration
-const API_URL = process.env.API_URL || 'http://localhost:3001';
+const API_URL = process.env.API_URL || 'http://127.0.0.1:3001';
 let authToken = null;
 
 const API = axios.create({
@@ -488,6 +488,40 @@ function setupIPC() {
             return { success: true, data: response.data };
         } catch (error) {
             log.error('Get VPN status failed:', error.message);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Tailscale status - public endpoint
+    ipcMain.handle('vpn:tailscale-status', async () => {
+        try {
+            const response = await API.get('/api/public/tailscale-status');
+            return { success: true, data: response.data };
+        } catch (error) {
+            log.error('Get Tailscale status failed:', error.message);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Install Tailscale - opens download page
+    ipcMain.handle('vpn:install-tailscale', async () => {
+        try {
+            const { shell } = require('electron');
+            shell.openExternal('https://tailscale.com/download');
+            return { success: true };
+        } catch (error) {
+            log.error('Install Tailscale failed:', error.message);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Proxy info - get built-in proxy details
+    ipcMain.handle('vpn:proxy-info', async () => {
+        try {
+            const response = await API.get('/api/public/proxy-info');
+            return { success: true, data: response.data.data };
+        } catch (error) {
+            log.error('Get proxy info failed:', error.message);
             return { success: false, error: error.message };
         }
     });

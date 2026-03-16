@@ -46,12 +46,12 @@ let tray = null;
 let isQuitting = false;
 
 // API Configuration
-const API_URL = process.env.API_URL || 'https://netra-backend-99n0.onrender.com';
+const API_URL = process.env.API_URL || 'http://127.0.0.1:3001';
 let authToken = null;
 
 const API = axios.create({
     baseURL: API_URL,
-    timeout: 10000,
+    timeout: 30000,
     headers: { 'Content-Type': 'application/json' }
 });
 
@@ -345,7 +345,13 @@ function setupIPC() {
             return response.data; // Return the data directly
         } catch (error) {
             log.error('Get subscription status failed:', error.message);
-            return { success: false, error: error.message };
+            
+            // Handle 502 Bad Gateway - backend sleeping
+            if (error.response?.status === 502) {
+                return { success: false, error: 'Server is waking up. Please try again.', message: 'Server is waking up. Please try again.' };
+            }
+            
+            return { success: false, error: error.message, message: error.message };
         }
     });
 
@@ -357,7 +363,13 @@ function setupIPC() {
             return response.data; // Return the data directly
         } catch (error) {
             log.error('Get plans failed:', error.message);
-            return { success: false, error: error.message };
+            
+            // Handle 502 Bad Gateway - backend sleeping
+            if (error.response?.status === 502) {
+                return { success: false, error: 'Server is waking up. Please try again.', message: 'Server is waking up. Please try again.' };
+            }
+            
+            return { success: false, error: error.message, message: error.message };
         }
     });
 
@@ -374,10 +386,20 @@ function setupIPC() {
     ipcMain.handle('subscription:purchase', async (event, planId) => {
         try {
             log.info('Purchase attempt for plan:', planId);
+            log.info('Current auth token:', authToken ? 'present' : 'missing');
+            
             const response = await API.post('/api/subscription/purchase', { planId });
+            log.info('Purchase response:', JSON.stringify(response.data));
             return { success: true, data: response.data };
         } catch (error) {
             log.error('Purchase failed:', error.message);
+            log.error('Error response:', error.response?.data);
+            
+            // Handle 502 Bad Gateway - backend sleeping
+            if (error.code === 'ECONNREFUSED' || error.response?.status === 502) {
+                return { success: false, error: 'Server is waking up. Please try again in 30 seconds.' };
+            }
+            
             return { success: false, error: error.response?.data?.message || error.message };
         }
     });
@@ -466,6 +488,40 @@ function setupIPC() {
             return { success: true, data: response.data };
         } catch (error) {
             log.error('Get VPN status failed:', error.message);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Tailscale status - public endpoint
+    ipcMain.handle('vpn:tailscale-status', async () => {
+        try {
+            const response = await API.get('/api/public/tailscale-status');
+            return { success: true, data: response.data };
+        } catch (error) {
+            log.error('Get Tailscale status failed:', error.message);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Install Tailscale - opens download page
+    ipcMain.handle('vpn:install-tailscale', async () => {
+        try {
+            const { shell } = require('electron');
+            shell.openExternal('https://tailscale.com/download');
+            return { success: true };
+        } catch (error) {
+            log.error('Install Tailscale failed:', error.message);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Proxy info - get built-in proxy details
+    ipcMain.handle('vpn:proxy-info', async () => {
+        try {
+            const response = await API.get('/api/public/proxy-info');
+            return { success: true, data: response.data.data };
+        } catch (error) {
+            log.error('Get proxy info failed:', error.message);
             return { success: false, error: error.message };
         }
     });

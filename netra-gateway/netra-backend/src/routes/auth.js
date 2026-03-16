@@ -23,7 +23,7 @@ router.post('/register', async (req, res) => {
         }
         
         // Check if email already exists
-        const existingUser = User.findByEmail(email);
+        const existingUser = await User.findByEmail(email);
         if (existingUser) {
             return res.status(400).json({
                 success: false,
@@ -31,18 +31,11 @@ router.post('/register', async (req, res) => {
             });
         }
         
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
-        // Create user
-        const user = User.create({
-            name,
-            email,
-            password: hashedPassword
-        });
+        // Create user (password will be hashed in the model)
+        const user = await User.create(email, password, name);
         
         // Create free trial subscription
-        const subscription = UserSubscription.create(user.id, 'free', 'free-trial');
+        const subscription = await UserSubscription.create(user.id, 'free', 'free-trial');
         
         // Generate token
         const token = generateToken(user);
@@ -82,7 +75,7 @@ router.post('/login', async (req, res) => {
         }
         
         // Find user
-        const user = User.findByEmail(email);
+        const user = await User.findByEmail(email);
         
         // Check if admin login
         if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
@@ -147,11 +140,11 @@ router.post('/login', async (req, res) => {
         }
         
         // Get subscription
-        let subscription = UserSubscription.findByUserId(user.id);
+        let subscription = await UserSubscription.findByUserId(user.id);
         
         // Auto-provision free trial if none exists
         if (!subscription) {
-            subscription = UserSubscription.create(user.id, 'free', 'free-trial');
+            subscription = await UserSubscription.create(user.id, 'free', 'free-trial');
         }
         
         // Generate token

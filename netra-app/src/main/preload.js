@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('netraAPI', {
     connectVPN: () => ipcRenderer.invoke('vpn:connect'),
     disconnectVPN: () => ipcRenderer.invoke('vpn:disconnect'),
     getVPNStatus: () => ipcRenderer.invoke('vpn:status'),
+    getTailscaleStatus: () => ipcRenderer.invoke('vpn:tailscale-status'),
+    installTailscale: () => ipcRenderer.invoke('vpn:install-tailscale'),
+    getProxyInfo: () => ipcRenderer.invoke('vpn:proxy-info'),
 
     // Usage
     getUsageStats: () => ipcRenderer.invoke('usage:stats'),
